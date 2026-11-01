@@ -1,1 +1,8 @@
 /ML_Model/datasets/
+run_server.bat
+semg_server.exe
+/.vscode
+/assets
+/learning-records
+/lessons
+/reference
