@@ -1,0 +1,61 @@
+(kicad_sch (version 20260101) (generator "eeschema") (generator_version "10.0")
+
+  (uuid 3262dff6-21d8-46ae-b076-e8c18cfd40c4)
+
+  (paper "A4")
+
+  (lib_symbols
+  )
+
+  (sheet (at 40.0 40.0) (size 60.0 40.0) (fields_autoplaced yes)
+    (stroke (width 0.0006) (type default))
+    (fill (color 0 0 0 0.0000))
+    (uuid "bbb0a053-7f27-4667-acbb-a5c8c109d0a0")
+    (property "Sheetname" "Power_Supply" (at 42.54 38.73 0)
+      (effects (font (size 1.27 1.27)) (justify left bottom))
+    )
+    (property "Sheetfile" "Power_Supply.kicad_sch" (at 42.54 81.27 0)
+      (effects (font (size 1.27 1.27)) (justify left top))
+    )
+    (instances
+      (project "EMG_Armband_3CH"
+        (path "/3262dff6-21d8-46ae-b076-e8c18cfd40c4" (page "2"))
+      )
+    )
+  )
+  (sheet (at 120.0 40.0) (size 60.0 40.0) (fields_autoplaced yes)
+    (stroke (width 0.0006) (type default))
+    (fill (color 0 0 0 0.0000))
+    (uuid "1af7a8b4-9820-4530-8dc3-403a0c310b88")
+    (property "Sheetname" "MCU_ESP32" (at 122.54 38.73 0)
+      (effects (font (size 1.27 1.27)) (justify left bottom))
+    )
+    (property "Sheetfile" "MCU_ESP32.kicad_sch" (at 122.54 81.27 0)
+      (effects (font (size 1.27 1.27)) (justify left top))
+    )
+    (instances
+      (project "EMG_Armband_3CH"
+        (path "/3262dff6-21d8-46ae-b076-e8c18cfd40c4" (page "3"))
+      )
+    )
+  )
+  (sheet (at 200.0 40.0) (size 60.0 40.0) (fields_autoplaced yes)
+    (stroke (width 0.0006) (type default))
+    (fill (color 0 0 0 0.0000))
+    (uuid "f83fa620-a44b-4bea-b179-00ad6ba8bc5a")
+    (property "Sheetname" "AFE_3CH_AD8232" (at 202.54 38.73 0)
+      (effects (font (size 1.27 1.27)) (justify left bottom))
+    )
+    (property "Sheetfile" "AFE_3CH_AD8232.kicad_sch" (at 202.54 81.27 0)
+      (effects (font (size 1.27 1.27)) (justify left top))
+    )
+    (instances
+      (project "EMG_Armband_3CH"
+        (path "/3262dff6-21d8-46ae-b076-e8c18cfd40c4" (page "4"))
+      )
+    )
+  )
+  (sheet_instances
+    (path "/" (page "1"))
+  )
+)
