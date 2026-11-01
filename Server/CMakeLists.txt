@@ -19,6 +19,7 @@ if(WIN32)
     target_link_libraries(semg_server PRIVATE
         "${MOSQUITTO_ROOT}/mosquitto.dll"
         "${MOSQUITTO_ROOT}/mosquitto_common.dll"
+        ws2_32
     )
 else()
     target_link_libraries(semg_server PRIVATE
