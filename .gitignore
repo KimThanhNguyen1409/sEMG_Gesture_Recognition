@@ -1,4 +1,5 @@
 /ML_Model/datasets/
+/ML_Model/semg_mlp.tflite
 run_server.bat
 semg_server.exe
 /.vscode
