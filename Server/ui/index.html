@@ -3,206 +3,330 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>sEMG IoT Inference Server — Control Center</title>
+  <title>sEMG IoT Gesture Control Center</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="pulse-dot" id="srvDot"></span>
+  <!-- 1. Header / Topbar -->
+  <header class="app-header">
+    <div class="brand-cluster">
+      <div class="brand-symbol">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8a3 3 0 0 0-3-3 3 3 0 0 0-3 3v8a3 3 0 0 1-3 3 3 3 0 0 1-3-3V7a2 2 0 0 1 4 0v6"/>
+          <path d="M18 11a3 3 0 0 1 3 3v2a6 6 0 0 1-6 6h-2"/>
+        </svg>
+      </div>
       <div>
-        <h1>sEMG C Inference Server Dashboard</h1>
-        <p id="engineInfo">Connecting to C Backend (http://localhost:8080)...</p>
+        <div class="brand-title-row">
+          <h1>sEMG IoT Control Center</h1>
+          <span class="version-tag">C Runtime 1.0</span>
+        </div>
+        <p class="brand-sub" id="engineInfo">Đang kết nối C Server Backend (http://localhost:8080)...</p>
       </div>
     </div>
-    <div class="topbar-badges">
-      <div class="status-pill" id="mqttBadge">MQTT Broker: Checking...</div>
-      <div class="status-pill muted" id="uptimeBadge">Uptime: 0s</div>
+
+    <div class="header-status-group">
+      <div class="status-chip" id="mqttChip">
+        <span class="status-indicator" id="mqttDot"></span>
+        <span id="mqttStatusText">MQTT Broker: Đang kết nối...</span>
+      </div>
+      <div class="status-chip neutral" id="uptimeChip">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="uptimeText">Uptime: 0s</span>
+      </div>
     </div>
   </header>
 
-  <main class="container">
-    <!-- Hàng 1: KPI Cards -->
-    <section class="kpi-grid">
-      <div class="kpi-card">
-        <span class="kpi-label">End Devices (Thiết bị Đích)</span>
-        <div class="kpi-value" id="kpiEndDev">0 / 0</div>
-        <span class="kpi-sub">Đang Online / Tổng số đăng ký</span>
+  <!-- 2. Slim Metric Strip (KPIs trải ngang gọn gàng) -->
+  <section class="metric-strip">
+    <div class="metric-tile">
+      <div class="metric-icon blue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
       </div>
-      <div class="kpi-card">
-        <span class="kpi-label">sEMG Sensor MCUs (ESP32)</span>
-        <div class="kpi-value" id="kpiSensors">0 / 0</div>
-        <span class="kpi-sub">Đang gửi luồng 15 features</span>
+      <div class="metric-content">
+        <span class="metric-label">End Devices (Đích)</span>
+        <div class="metric-num"><strong id="kpiEndDevOnline">0</strong><span class="metric-den">/<span id="kpiEndDevTotal">0</span></span></div>
       </div>
-      <div class="kpi-card">
-        <span class="kpi-label">Tổng Gói Dữ liệu Nhận (Rx)</span>
-        <div class="kpi-value" id="kpiRx">0</div>
-        <span class="kpi-sub" id="kpiLastSensor">Nguồn gần nhất: none</span>
-      </div>
-      <div class="kpi-card highlight">
-        <span class="kpi-label">Cử chỉ Chốt Hạ (Active Gesture)</span>
-        <div class="kpi-value" id="kpiGesture">RESTING</div>
-        <span class="kpi-sub" id="kpiTx">Đã phát 0 lệnh điều khiển (Tx)</span>
-      </div>
-    </section>
+    </div>
 
-    <!-- Hàng 2: Dữ liệu nhận đến (15 Features + Xác suất MLP) & Tùy chỉnh Server -->
-    <section class="main-grid">
-      <!-- Cột Trái: Live Incoming Data & MLP Probabilities -->
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Dữ liệu sEMG Nhận Đến &amp; Dự đoán MLP (Real-time)</h2>
-          <div class="sim-controls">
-            <span>Bắn thử gói tin:</span>
-            <button class="btn-sm" onclick="sendSimGesture('RESTING')">Resting</button>
-            <button class="btn-sm accent" onclick="sendSimGesture('FIST')">Fist</button>
-            <button class="btn-sm accent" onclick="sendSimGesture('OPEN_HAND')">Open Hand</button>
-            <button class="btn-sm accent" onclick="sendSimGesture('POINTING')">Pointing</button>
+    <div class="metric-tile">
+      <div class="metric-icon emerald">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div class="metric-content">
+        <span class="metric-label">sEMG Sensor (ESP32)</span>
+        <div class="metric-num"><strong id="kpiSensorOnline">0</strong><span class="metric-den">/<span id="kpiSensorTotal">0</span></span></div>
+      </div>
+    </div>
+
+    <div class="metric-tile">
+      <div class="metric-icon purple">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div class="metric-content">
+        <span class="metric-label">Tổng Gói Nhận (Rx)</span>
+        <div class="metric-num"><strong id="kpiTotalRx">0</strong><span class="metric-unit" id="kpiLastDev">gói</span></div>
+      </div>
+    </div>
+
+    <div class="metric-tile">
+      <div class="metric-icon amber">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </div>
+      <div class="metric-content">
+        <span class="metric-label">Lệnh Điều Khiển (Tx)</span>
+        <div class="metric-num"><strong id="kpiTotalTx">0</strong><span class="metric-unit">lệnh</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Main Workspace: Mission Control 3 Cột -->
+  <main class="mission-control-grid">
+
+    <!-- CỘT 1: Quản lý Thiết bị (Fleet) & Tùy chỉnh (Config) -->
+    <aside class="col-panel col-fleet">
+      <!-- 1.1 Danh sách Thiết bị -->
+      <section class="card">
+        <div class="card-header">
+          <div class="header-label-group">
+            <h2>Thiết Bị Kết Nối</h2>
+            <span class="badge-count" id="fleetBadge">0 thiết bị</span>
           </div>
         </div>
 
-        <div class="prob-section">
-          <h3>Xác suất Đầu ra Model TFLite (4 Cử chỉ)</h3>
-          <div class="prob-bars">
-            <div class="prob-row">
-              <span class="prob-name">0 • RESTING</span>
-              <div class="bar-track"><div class="bar-fill" id="bar0" style="width:0%"></div></div>
-              <span class="prob-val" id="val0">0.0%</span>
-            </div>
-            <div class="prob-row">
-              <span class="prob-name">1 • FIST</span>
-              <div class="bar-track"><div class="bar-fill" id="bar1" style="width:0%"></div></div>
-              <span class="prob-val" id="val1">0.0%</span>
-            </div>
-            <div class="prob-row">
-              <span class="prob-name">2 • OPEN_HAND</span>
-              <div class="bar-track"><div class="bar-fill" id="bar2" style="width:0%"></div></div>
-              <span class="prob-val" id="val2">0.0%</span>
-            </div>
-            <div class="prob-row">
-              <span class="prob-name">3 • POINTING</span>
-              <div class="bar-track"><div class="bar-fill" id="bar3" style="width:0%"></div></div>
-              <span class="prob-val" id="val3">0.0%</span>
-            </div>
-          </div>
+        <div class="device-quick-add">
+          <input type="text" id="newEndDevId" placeholder="Tên ID (vd: arm_robot_01)">
+          <button class="btn-icon-add" onclick="registerEndDevice()" title="Thêm / Ping End Device">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Thêm</span>
+          </button>
         </div>
 
-        <h3>Vector 15 Đặc trưng Hudgins Nhận từ ESP32 (<code id="seqLabel">seq #0</code>)</h3>
-        <div class="channel-grid">
-          <div class="ch-card">
-            <h4>Channel 1 (Cơ Gấp)</h4>
-            <ul class="feat-list" id="ch1List"></ul>
-          </div>
-          <div class="ch-card">
-            <h4>Channel 2 (Cơ Duỗi)</h4>
-            <ul class="feat-list" id="ch2List"></ul>
-          </div>
-          <div class="ch-card">
-            <h4>Channel 3 (Cơ Ngón)</h4>
-            <ul class="feat-list" id="ch3List"></ul>
-          </div>
+        <div class="device-list" id="deviceListContainer">
+          <div class="empty-state">Đang tải danh sách thiết bị...</div>
         </div>
-      </div>
+      </section>
 
-      <!-- Cột Phải: Các Tùy chỉnh (Server Tuning & Action Mapping) -->
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Tùy chỉnh Server &amp; Gán Lệnh (Live Config)</h2>
+      <!-- 1.2 Cấu hình Thông số Server -->
+      <section class="card config-card">
+        <div class="card-header">
+          <div class="header-label-group">
+            <h2>Tùy Chỉnh Server</h2>
+            <span class="live-tag">Live Sync</span>
+          </div>
         </div>
 
         <form id="configForm" onsubmit="saveConfig(event)">
-          <div class="form-group">
-            <label for="confInput">
-              Ngưỡng Tự tin Tối thiểu (Confidence Threshold):
-              <strong id="confDisplay">0.75</strong>
-            </label>
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="confInput">Ngưỡng Tự Tin (Threshold)</label>
+              <span class="slider-value" id="confDisplay">0.75</span>
+            </div>
             <input type="range" id="confInput" min="0.40" max="0.98" step="0.01" value="0.75"
                    oninput="document.getElementById('confDisplay').textContent = parseFloat(this.value).toFixed(2)">
+            <span class="slider-desc">Bảo vệ: Nếu xác suất &lt; ngưỡng sẽ tự động giữ RESTING.</span>
           </div>
 
-          <div class="form-group">
-            <label for="voteInput">
-              Số Cửa sổ Biểu quyết Liên tiếp (Vote Debounce Window):
-              <strong id="voteDisplay">3</strong> gói
-            </label>
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="voteInput">Cửa Sổ Biểu Quyết (Debounce)</label>
+              <span class="slider-value" id="voteDisplay">3 gói</span>
+            </div>
             <input type="range" id="voteInput" min="1" max="8" step="1" value="3"
-                   oninput="document.getElementById('voteDisplay').textContent = this.value">
+                   oninput="document.getElementById('voteDisplay').textContent = this.value + ' gói'">
+            <span class="slider-desc">Cần N cửa sổ liên tiếp đồng nhất mới chốt gửi lệnh MQTT.</span>
           </div>
 
-          <h3>Gán Lệnh Thực thi cho End Device theo Cử chỉ</h3>
-          <div class="action-map-grid">
-            <div class="map-item">
-              <span>0 • RESTING</span>
-              <input type="text" id="act0" value="IDLE_HOLD">
-            </div>
-            <div class="map-item">
-              <span>1 • FIST</span>
-              <input type="text" id="act1" value="GRIP_CLOSE">
-            </div>
-            <div class="map-item">
-              <span>2 • OPEN_HAND</span>
-              <input type="text" id="act2" value="HAND_RELEASE">
-            </div>
-            <div class="map-item">
-              <span>3 • POINTING</span>
-              <input type="text" id="act3" value="CURSOR_CLICK">
+          <div class="action-map-section">
+            <span class="section-micro-label">Ánh Xạ Lệnh Thực Thi Xuống End Device</span>
+            <div class="action-map-rows">
+              <div class="action-row">
+                <span class="act-gesture-tag">0 • REST</span>
+                <input type="text" id="act0" value="IDLE_HOLD">
+              </div>
+              <div class="action-row">
+                <span class="act-gesture-tag">1 • FIST</span>
+                <input type="text" id="act1" value="GRIP_CLOSE">
+              </div>
+              <div class="action-row">
+                <span class="act-gesture-tag">2 • OPEN</span>
+                <input type="text" id="act2" value="HAND_RELEASE">
+              </div>
+              <div class="action-row">
+                <span class="act-gesture-tag">3 • POINT</span>
+                <input type="text" id="act3" value="CURSOR_CLICK">
+              </div>
             </div>
           </div>
 
-          <button type="submit" class="btn-primary">Lưu &amp; Áp dụng xuống C Server</button>
-          <span class="save-msg" id="saveStatus"></span>
+          <button type="submit" class="btn-primary" id="btnSaveConfig">
+            <span>Cập Nhật Vào C Server</span>
+          </button>
+          <div class="save-toast" id="saveStatus"></div>
         </form>
-      </div>
-    </section>
+      </section>
+    </aside>
 
-    <!-- Hàng 3: Trạng thái kết nối End Devices & Nhật ký Gói tin -->
-    <section class="bottom-grid">
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Trạng thái Kết nối Thiết bị (End Devices &amp; Sensor MCUs)</h2>
-          <div class="inline-add">
-            <input type="text" id="newEndDevId" placeholder="ID thiết bị (vd: arm_mcu_02)">
-            <button class="btn-sm accent" onclick="registerEndDevice()">+ Thêm / Ping End Device</button>
+
+    <!-- CỘT 2: Tâm điểm Thị giác (Focal Stage) - Hero Visualizer & Xác suất MLP -->
+    <main class="col-panel col-hero">
+      <section class="card hero-stage-card">
+        <div class="stage-top-meta">
+          <div class="meta-stream-tag">
+            <span class="meta-pulse"></span>
+            <span id="activeSensorLabel">Sensor: Chờ gói sEMG...</span>
+          </div>
+          <div class="meta-seq" id="activeSeqLabel">seq #0</div>
+        </div>
+
+        <!-- Hero Gesture Display (SVG Bàn tay + Gauge Tự Tin) -->
+        <div class="hero-visualizer-box">
+          <div class="hand-avatar-wrapper" id="handAvatarBox">
+            <div class="hand-svg-container" id="handSvgSlot">
+              <!-- SVG Bàn tay render động qua app.js -->
+            </div>
+            <div class="hand-glow-ring"></div>
+          </div>
+
+          <div class="hero-info">
+            <span class="hero-sublabel">Cử chỉ Nhận diện Thời gian thực</span>
+            <h2 class="hero-gesture-title" id="heroGestureText">RESTING</h2>
+            <div class="hero-action-pill" id="heroActionPill">Lệnh: IDLE_HOLD</div>
+          </div>
+
+          <!-- Đồng hồ Gauge đo Độ tự tin Radial -->
+          <div class="confidence-radial-box">
+            <svg class="radial-svg" viewBox="0 0 100 100">
+              <circle class="radial-bg" cx="50" cy="50" r="42"/>
+              <circle class="radial-progress" id="radialCircle" cx="50" cy="50" r="42"/>
+            </svg>
+            <div class="radial-value-slot">
+              <span class="radial-number" id="radialPercent">0%</span>
+              <span class="radial-caption">Tự tin</span>
+            </div>
           </div>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Device ID</th>
-              <th>Vai trò (Role)</th>
-              <th>Kết nối</th>
-              <th>Gói đã nhận</th>
-              <th>Hoạt động cuối</th>
-              <th>Trạng thái / Lệnh đang nhận</th>
-            </tr>
-          </thead>
-          <tbody id="deviceTableBody">
-            <tr><td colspan="6" class="empty-cell">Đang tải danh sách thiết bị...</td></tr>
-          </tbody>
-        </table>
-      </div>
 
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Nhật ký Luồng Dữ liệu Nhận Đến (Live Packet Stream)</h2>
+        <!-- 4 Thanh Xác Suất MLP Output -->
+        <div class="probabilities-section">
+          <div class="prob-header">
+            <h3>Xác Suất Đầu Ra Model MLP (TensorFlow Lite)</h3>
+            <span class="prob-subtext">C API Softmax Layer</span>
+          </div>
+
+          <div class="prob-list">
+            <div class="prob-item" id="probItem0">
+              <div class="prob-meta">
+                <span class="prob-name">0 • RESTING (Nghỉ)</span>
+                <span class="prob-pct" id="pct0">0.0%</span>
+              </div>
+              <div class="track-bar"><div class="fill-bar" id="fill0"></div></div>
+            </div>
+
+            <div class="prob-item" id="probItem1">
+              <div class="prob-meta">
+                <span class="prob-name">1 • FIST (Nắm Tay)</span>
+                <span class="prob-pct" id="pct1">0.0%</span>
+              </div>
+              <div class="track-bar"><div class="fill-bar" id="fill1"></div></div>
+            </div>
+
+            <div class="prob-item" id="probItem2">
+              <div class="prob-meta">
+                <span class="prob-name">2 • OPEN_HAND (Xòe Tay)</span>
+                <span class="prob-pct" id="pct2">0.0%</span>
+              </div>
+              <div class="track-bar"><div class="fill-bar" id="fill2"></div></div>
+            </div>
+
+            <div class="prob-item" id="probItem3">
+              <div class="prob-meta">
+                <span class="prob-name">3 • POINTING (Chỉ Tay)</span>
+                <span class="prob-pct" id="pct3">0.0%</span>
+              </div>
+              <div class="track-bar"><div class="fill-bar" id="fill3"></div></div>
+            </div>
+          </div>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Thời gian</th>
-              <th>Nguồn</th>
-              <th>Seq</th>
-              <th>Dự đoán Tức thời</th>
-              <th>Độ tự tin</th>
-              <th>Lệnh đã chốt</th>
-            </tr>
-          </thead>
-          <tbody id="logTableBody">
-            <tr><td colspan="6" class="empty-cell">Chưa có gói tin sEMG nào...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+
+        <!-- Thanh Giả lập Test nhanh gói tin -->
+        <div class="simulator-strip">
+          <span class="sim-caption">Bắn thử mẫu sEMG:</span>
+          <div class="sim-pill-group">
+            <button class="sim-pill" onclick="sendSimGesture('RESTING')">Rest</button>
+            <button class="sim-pill primary" onclick="sendSimGesture('FIST')">Fist</button>
+            <button class="sim-pill primary" onclick="sendSimGesture('OPEN_HAND')">Open</button>
+            <button class="sim-pill primary" onclick="sendSimGesture('POINTING')">Point</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+
+    <!-- CỘT 3: Telemetry 15 Đặc trưng sEMG 3 Kênh & Nhật ký Gói tin (Feed) -->
+    <aside class="col-panel col-telemetry">
+      <!-- 3.1 Telemetry 15 Đặc trưng Hudgins (3 Kênh) -->
+      <section class="card">
+        <div class="card-header">
+          <div class="header-label-group">
+            <h2>Telemetry 15 Đặc Trưng</h2>
+            <span class="hudgins-tag">Hudgins TD5</span>
+          </div>
+          <span class="channel-count">3 Kênh sEMG</span>
+        </div>
+
+        <div class="channels-stack">
+          <!-- Kênh 1 -->
+          <div class="channel-card">
+            <div class="ch-title-bar">
+              <div class="ch-dot ch1"></div>
+              <h4>Kênh 1: Cơ Gấp Cổ Tay (Flexor)</h4>
+            </div>
+            <div class="ch-metrics" id="ch1Metrics">
+              <!-- Render động qua app.js -->
+            </div>
+          </div>
+
+          <!-- Kênh 2 -->
+          <div class="channel-card">
+            <div class="ch-title-bar">
+              <div class="ch-dot ch2"></div>
+              <h4>Kênh 2: Cơ Duỗi Cổ Tay (Extensor)</h4>
+            </div>
+            <div class="ch-metrics" id="ch2Metrics">
+              <!-- Render động qua app.js -->
+            </div>
+          </div>
+
+          <!-- Kênh 3 -->
+          <div class="channel-card">
+            <div class="ch-title-bar">
+              <div class="ch-dot ch3"></div>
+              <h4>Kênh 3: Cơ Vận Động Ngón (Brachioradialis)</h4>
+            </div>
+            <div class="ch-metrics" id="ch3Metrics">
+              <!-- Render động qua app.js -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3.2 Nhật ký Gói Tin Thời Gian Thực (Stream Log) -->
+      <section class="card log-card">
+        <div class="card-header">
+          <div class="header-label-group">
+            <h2>Nhật Ký Gói Tin MQTT</h2>
+            <span class="live-dot-indicator"></span>
+          </div>
+          <span class="log-capacity">20 gói gần nhất</span>
+        </div>
+
+        <div class="log-stream-box" id="logStreamContainer">
+          <div class="empty-state">Chưa nhận gói tin sEMG nào...</div>
+        </div>
+      </section>
+    </aside>
+
   </main>
 
   <script src="app.js"></script>
