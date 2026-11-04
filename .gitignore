@@ -7,3 +7,7 @@ semg_server.exe
 /learning-records
 /lessons
 /reference
+/Firmware/build
+/Firmware/build.bat
+/Firmware/flash.bat
+/Firmware/README.md
