@@ -1,0 +1,16 @@
+idf_component_register(
+    SRCS 
+        "main.c"
+        "semg_adc.c"
+        "semg_filter.c"
+        "semg_uart.c"
+    INCLUDE_DIRS 
+        "."
+    PRIV_REQUIRES 
+        esp_driver_gptimer 
+        esp_adc 
+        esp_driver_uart 
+        esp_timer
+        driver 
+        freertos
+)
