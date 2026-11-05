@@ -3,6 +3,7 @@
 run_server.bat
 semg_server.exe
 /.vscode
+/Server/*.dll
 /assets
 /learning-records
 /lessons
