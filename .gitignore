@@ -5,3 +5,7 @@
 _autosave*
 kicad_workspace/
 EOF
+
+.history/
+TH/
+*.lck
