@@ -1126,3 +1126,343 @@ input[type="range"] {
   font-size: 0.8rem;
   padding: 1.5rem 0;
 }
+
+/* ==========================================================================
+   2-Step MVC / Baseline Calibration Component
+   ========================================================================== */
+.calib-card {
+  margin-top: 1rem;
+}
+
+.calib-status-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-medium);
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.calib-status-badge.calibrated {
+  background: var(--status-online-soft);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.calib-status-badge.resting {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.4);
+  animation: pulseCalib 1.5s infinite;
+}
+
+.calib-status-badge.mvc {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.4);
+  animation: pulseCalib 1s infinite;
+}
+
+@keyframes pulseCalib {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.03); }
+}
+
+.calib-tip-text {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin-bottom: 0.85rem;
+}
+
+.calib-progress-box {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.calib-step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+.calib-step-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.calib-step-pct {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+.calib-bar-track {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-inset);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.calib-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #38bdf8);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.calib-metrics-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.85rem;
+}
+
+.calib-metric-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.calib-metric-col span {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.calib-metric-col strong {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+.calib-btn-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-calib-start {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.85rem;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  transition: all 0.15s ease;
+}
+
+.btn-calib-start:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.btn-calib-start:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-calib-reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.85rem;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-calib-reset:hover {
+  background: var(--bg-inset);
+  color: var(--text-primary);
+}
+
+/* ==========================================================================
+   Closed-Loop Command Handshake (ACK Stepper)
+   ========================================================================== */
+.closed-loop-card {
+  margin-top: 1.15rem;
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.closed-loop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.loop-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.loop-title-group svg {
+  stroke: var(--accent-primary);
+}
+
+.loop-cmd-tag {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-medium);
+  color: var(--text-muted);
+}
+
+.loop-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.loop-step {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1;
+}
+
+.step-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #cbd5e1;
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+}
+
+.step-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.step-meta strong {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: -0.01em;
+  transition: color 0.2s ease;
+}
+
+.step-meta .step-sub {
+  font-size: 0.68rem;
+  color: var(--text-subtle);
+}
+
+.loop-connector {
+  flex: 0.8;
+  height: 2px;
+  background: var(--border-medium);
+  margin: 0 0.25rem;
+  transition: background 0.25s ease;
+}
+
+.loop-connector.active {
+  background: var(--accent-primary);
+}
+
+/* Stepper state classes */
+.loop-step.active.dispatched .step-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+}
+.loop-step.active.dispatched strong {
+  color: #b45309;
+}
+
+.loop-step.active.executing .step-dot {
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+  animation: pulseDot 1.4s infinite;
+}
+.loop-step.active.executing strong {
+  color: #1e40af;
+}
+
+.loop-step.active.confirmed .step-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+}
+.loop-step.active.confirmed strong {
+  color: #047857;
+}
+
+.loop-step.active.timeout .step-dot {
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+}
+.loop-step.active.timeout strong {
+  color: #b91c1c;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; }
+}
+
+/* Simulator extra pills */
+.sim-pill.success {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.35);
+  font-weight: 600;
+}
+
+.sim-pill.success:hover {
+  background: #d1fae5;
+  border-color: #10b981;
+}
+
+.version-tag.sse-active {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.version-tag.sse-polling {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.35);
+}

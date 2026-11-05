@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>sEMG IoT Gesture Control Center</title>
+  <title>sEMG IoT Gesture Control Center — Production Grade</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -19,7 +19,7 @@
       <div>
         <div class="brand-title-row">
           <h1>sEMG IoT Control Center</h1>
-          <span class="version-tag">C Runtime 1.0</span>
+          <span class="version-tag" id="sseTransportTag">SSE Stream &lt;2ms</span>
         </div>
         <p class="brand-sub" id="engineInfo">Đang kết nối C Server Backend (http://localhost:8080)...</p>
       </div>
@@ -37,7 +37,7 @@
     </div>
   </header>
 
-  <!-- 2. Slim Metric Strip (KPIs trải ngang gọn gàng) -->
+  <!-- 2. Slim Metric Strip (KPIs) -->
   <section class="metric-strip">
     <div class="metric-tile">
       <div class="metric-icon blue">
@@ -83,7 +83,7 @@
   <!-- 3. Main Workspace: Mission Control 3 Cột -->
   <main class="mission-control-grid">
 
-    <!-- CỘT 1: Quản lý Thiết bị (Fleet) & Tùy chỉnh (Config) -->
+    <!-- CỘT 1: Quản lý Thiết bị (Fleet) + Hiệu chuẩn (Calibration) + Tùy chỉnh (Config) -->
     <aside class="col-panel col-fleet">
       <!-- 1.1 Danh sách Thiết bị -->
       <section class="card">
@@ -107,7 +107,55 @@
         </div>
       </section>
 
-      <!-- 1.2 Cấu hình Thông số Server -->
+      <!-- 1.2 Tầng Hiệu Chuẩn Động 2 Bước (MVC / Baseline Calibration) -->
+      <section class="card calib-card">
+        <div class="card-header">
+          <div class="header-label-group">
+            <h2>Hiệu Chuẩn Người Dùng</h2>
+            <span class="calib-status-badge" id="calibBadge">Factory Scale</span>
+          </div>
+        </div>
+
+        <p class="calib-tip-text">Đo đạc đường nền nghỉ (3s) &amp; co cơ tối đa MVC (3s) để chuẩn hóa biên độ theo từng bắp tay.</p>
+
+        <!-- Trạng thái tiến trình hiệu chuẩn -->
+        <div class="calib-progress-box" id="calibProgressBox" style="display: none;">
+          <div class="calib-step-header">
+            <span class="calib-step-title" id="calibStepTitle">Bước 1: Giữ tay nghỉ thả lỏng...</span>
+            <span class="calib-step-pct" id="calibProgressText">0%</span>
+          </div>
+          <div class="calib-bar-track">
+            <div class="calib-bar-fill" id="calibProgressBar" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <div class="calib-metrics-summary" id="calibMetricsSummary" style="display: none;">
+          <div class="calib-metric-col">
+            <span>Ch1 Gain</span>
+            <strong id="gainCh1">1.0x</strong>
+          </div>
+          <div class="calib-metric-col">
+            <span>Ch2 Gain</span>
+            <strong id="gainCh2">1.0x</strong>
+          </div>
+          <div class="calib-metric-col">
+            <span>Ch3 Gain</span>
+            <strong id="gainCh3">1.0x</strong>
+          </div>
+        </div>
+
+        <div class="calib-btn-group">
+          <button class="btn-calib-start" id="btnStartCalib" onclick="startCalibration()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            <span>Bắt Đầu Hiệu Chuẩn (6s)</span>
+          </button>
+          <button class="btn-calib-reset" onclick="resetCalibration()" title="Khôi phục mặc định">
+            <span>Reset</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 1.3 Cấu hình Thông số Server -->
       <section class="card config-card">
         <div class="card-header">
           <div class="header-label-group">
@@ -168,7 +216,7 @@
     </aside>
 
 
-    <!-- CỘT 2: Tâm điểm Thị giác (Focal Stage) - Hero Visualizer & Xác suất MLP -->
+    <!-- CỘT 2: Tâm điểm Thị giác (Focal Stage) - Hero Visualizer + Closed-Loop ACK + Xác suất MLP -->
     <main class="col-panel col-hero">
       <section class="card hero-stage-card">
         <div class="stage-top-meta">
@@ -203,6 +251,43 @@
             <div class="radial-value-slot">
               <span class="radial-number" id="radialPercent">0%</span>
               <span class="radial-caption">Tự tin</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Closed-Loop Handshake ACK Timeline Widget -->
+        <div class="closed-loop-card">
+          <div class="closed-loop-header">
+            <div class="loop-title-group">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Vòng Lặp Phản Hồi 2 Chiều (Closed-Loop Handshake)</span>
+            </div>
+            <span class="loop-cmd-tag" id="ackCmdTag">cmd #0</span>
+          </div>
+
+          <div class="loop-stepper">
+            <div class="loop-step" id="stepDispatched">
+              <span class="step-dot"></span>
+              <div class="step-meta">
+                <strong>1. DISPATCHED</strong>
+                <span class="step-sub">Server phát lệnh</span>
+              </div>
+            </div>
+            <div class="loop-connector" id="conn1"></div>
+            <div class="loop-step" id="stepExecuting">
+              <span class="step-dot"></span>
+              <div class="step-meta">
+                <strong>2. EXECUTING</strong>
+                <span class="step-sub">End Device xử lý</span>
+              </div>
+            </div>
+            <div class="loop-connector" id="conn2"></div>
+            <div class="loop-step" id="stepConfirmed">
+              <span class="step-dot"></span>
+              <div class="step-meta">
+                <strong id="ackStatusLabel">3. CONFIRMED</strong>
+                <span class="step-sub" id="ackLatencyLabel">Độ trễ: 0ms</span>
+              </div>
             </div>
           </div>
         </div>
@@ -249,7 +334,7 @@
           </div>
         </div>
 
-        <!-- Thanh Giả lập Test nhanh gói tin -->
+        <!-- Thanh Giả lập Test nhanh gói tin & ACK -->
         <div class="simulator-strip">
           <span class="sim-caption">Bắn thử mẫu sEMG:</span>
           <div class="sim-pill-group">
@@ -257,6 +342,9 @@
             <button class="sim-pill primary" onclick="sendSimGesture('FIST')">Fist</button>
             <button class="sim-pill primary" onclick="sendSimGesture('OPEN_HAND')">Open</button>
             <button class="sim-pill primary" onclick="sendSimGesture('POINTING')">Point</button>
+            <button class="sim-pill success" onclick="simulateEndDeviceAck()" title="Giả lập End Device hoàn tất lệnh trong 42ms">
+              + Giả lập ACK (42ms)
+            </button>
           </div>
         </div>
       </section>
