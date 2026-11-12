@@ -9,3 +9,4 @@ EOF
 .history/
 TH/
 *.lck
+.mcp-backups/
