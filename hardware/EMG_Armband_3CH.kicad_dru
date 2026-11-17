@@ -1,0 +1,47 @@
+(version 1)
+
+# ==============================================================================
+# EMG_Armband_3CH - Custom Design Rules (KiCad 10.0)
+# Target Fab: JLCPCB / PCBWay Standard 2-Layer (1 oz Cu, 1.6 mm FR-4)
+# ==============================================================================
+
+# 1. CHỐNG ĐỨT MẠCH / ACID TRAP (Góc nối giữa các đoạn track)
+(rule "No acute track angles (< 90 deg)"
+  (condition "A.Type == 'Track'")
+  (constraint track_angle (min 90deg))
+)
+
+# 2. AN TOÀN GIA CÔNG CƠ BẢN (DFM Floor - JLCPCB Standard)
+(rule "DFM Hole to Hole Clearance"
+  (condition "A.Net != B.Net")
+  (constraint hole_to_hole (min 0.30mm))
+)
+
+(rule "DFM Copper to Board Edge Clearance"
+  (condition "A.Type != 'Graphic'")
+  (constraint edge_clearance (min 0.50mm))
+)
+
+(rule "DFM Standard Via Size & Drill"
+  (condition "A.Type == 'Via'")
+  (constraint via_diameter (min 0.60mm))
+  (constraint via_drill (min 0.30mm))
+)
+
+# 3. CÁCH LY TÍN HIỆU Y SINH sEMG (High-Z & AFE)
+(rule "Analog_Sens Safe Clearance"
+  (condition "A.NetClass == 'Analog_Sens'")
+  (constraint clearance (min 0.20mm))
+)
+
+# 4. NGUỒN (POWER) - CHỊU DÒNG & GIẢM SỤT ÁP
+(rule "Main Power Rail Track Width"
+  (condition "A.Type == 'Track' && (A.NetName == 'VBUS' || A.NetName == '/VBAT' || A.NetName == '/VSW')")
+  (constraint track_width (min 0.40mm) (opt 0.50mm))
+)
+
+# 5. USB FULL-SPEED DIFFERENTIAL PAIR (USB_DP / USB_DN)
+(rule "USB Differential Pair Skew"
+  (condition "A.inDiffPair('USB*')")
+  (constraint skew (max 1.0mm))
+)
