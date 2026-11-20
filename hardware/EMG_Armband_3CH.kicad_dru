@@ -40,6 +40,11 @@
   (constraint track_width (min 0.40mm) (opt 0.50mm))
 )
 
+(rule "+3V3 Power Rail Track Width"
+  (condition "A.Type == 'Track' && A.NetName == '+3V3'")
+  (constraint track_width (min 0.35mm) (opt 0.50mm))
+)
+
 # 5. USB FULL-SPEED DIFFERENTIAL PAIR (USB_DP / USB_DN)
 (rule "USB Differential Pair Skew"
   (condition "A.inDiffPair('USB*')")
