@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Bài 0001: Giải phẫu Luồng Backend của sEMG C Server</title>
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <div class="nav-bar">
+    <span>Bài học 0001 • Hệ thống sEMG IoT</span>
+    <a href="../reference/server-backend-cheatsheet.html">Mở Bảng Tham khảo Nhanh (Cheatsheet) →</a>
+  </div>
+
+  <h1>Bài 0001: Giải phẫu Luồng Backend của sEMG C Server</h1>
+
+  <p>
+    Trong hệ thống của nhóm ní, file <code>Server/src/main.c</code> đóng vai trò là <strong>bộ não trung tâm ở tầng Backend</strong>: nó đứng giữa <strong>Mosquitto MQTT Broker</strong> và <strong>Model MLP TensorFlow Lite</strong>. Toàn bộ quá trình từ lúc nhận gói tin của ESP32 đến khi ra quyết định cử chỉ chỉ diễn ra trong <strong>vài micro-giây</strong> mà không dùng bất kỳ lệnh cấp phát động (<code>malloc</code>) nào.
+  </p>
+
+  <div class="callout">
+    <strong>Tài liệu gốc khuyên đọc:</strong>
+    <a href="https://mosquitto.org/api/files/mosquitto-h.html" target="_blank" rel="noopener">Eclipse Mosquitto Client C API (mosquitto.h)</a> &amp;
+    <a href="https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/c/c_api.h" target="_blank" rel="noopener">TensorFlow Lite C API Header Specification</a>.
+  </div>
+
+  <h2>1. Vòng đời 2 Pha của Server C (Init vs Runtime)</h2>
+  <p>Để chạy 24/7 trên Windows mà không bao giờ bị tràn RAM (Memory Leak), <code>main.c</code> tách bạch 2 pha:</p>
+  <ul>
+    <li>
+      <strong>Pha Khởi tạo (<code>main()</code> + <code>ml_runtime_init()</code>):</strong> Chạy đúng <strong>1 lần duy nhất</strong> khi bật chương trình. Nó nạp trọng số của <code>semg_mlp.tflite</code> (hoặc <code>tensorflowlite_c.dll</code>), khởi tạo biến toàn cục tĩnh <code>g_ctx</code> và kết nối vào MQTT Broker ở cổng <code>1883</code>.
+    </li>
+    <li>
+      <strong>Pha Chạy thực (Event Loop <code>mosquitto_loop()</code>):</strong> Nằm chờ gói tin từ ESP32. Mỗi khi có gói tin tới topic <code>semg/v1/+/features</code>, thư viện Mosquitto tự động kích hoạt hàm callback <code>on_mqtt_message()</code> chạy qua <strong>5 trạm xử lý nối tiếp</strong> dưới đây.
+    </li>
+  </ul>
+
+  <h2>2. Mô phỏng Tương tác: 5 Trạm Xử lý trong <code>on_mqtt_message()</code></h2>
+  <p>Ní hãy bấm thử các nút gửi gói tin bên dưới để quan sát cách <strong>Bộ lọc Biểu quyết (Majority Voting 3 cửa sổ)</strong> và <strong>Dedup (Chống bắn trùng lệnh)</strong> hoạt động bên trong <code>g_ctx</code>:</p>
+
+  <div class="sim-box">
+    <div class="btn-row">
+      <button class="btn" onclick="simSend(1, 'FIST', 0.96)">Bắn gói FIST (conf=0.96)</button>
+      <button class="btn" onclick="simSend(2, 'OPEN_HAND', 0.91)">Bắn gói OPEN_HAND (conf=0.91)</button>
+      <button class="btn" onclick="simSend(3, 'POINTING', 0.55)">Bắn gói Nhiễu yếu (conf=0.55 &lt; 0.75)</button>
+      <button class="btn secondary" onclick="simReset()">Reset trạng thái Server</button>
+    </div>
+
+    <div class="pipeline-grid" id="pipelineStages">
+      <div class="stage-card" id="st1">
+        <div class="stage-num">Trạm 1</div>
+        <div class="stage-title">parse_feature_payload</div>
+        <p class="stage-desc" id="st1_txt">Chờ bản tin JSON...</p>
+      </div>
+      <div class="stage-card" id="st2">
+        <div class="stage-num">Trạm 2</div>
+        <div class="stage-title">semg_normalize</div>
+        <p class="stage-desc" id="st2_txt">(f[i] - MEAN[i]) / STD[i]</p>
+      </div>
+      <div class="stage-card" id="st3">
+        <div class="stage-num">Trạm 3</div>
+        <div class="stage-title">ml_runtime_infer</div>
+        <p class="stage-desc" id="st3_txt">MLP 15 → 64 → 32 → 4</p>
+      </div>
+      <div class="stage-card" id="st4">
+        <div class="stage-num">Trạm 4</div>
+        <div class="stage-title">post_process_vote</div>
+        <p class="stage-desc" id="st4_txt">vote_buf: [-, -, -]</p>
+      </div>
+      <div class="stage-card" id="st5">
+        <div class="stage-num">Trạm 5</div>
+        <div class="stage-title">mosquitto_publish</div>
+        <p class="stage-desc" id="st5_txt">Chưa phát lệnh</p>
+      </div>
+    </div>
+
+    <pre><code id="simLog">// Bấm nút phía trên để gửi gói MQTT giả lập từ ESP32 vào Server C...</code></pre>
+  </div>
+
+  <h2>3. Giải thích Chi tiết Từng Trạm trong Code C</h2>
+
+  <h3>Trạm 1: Bóc tách JSON không cấp phát động (<code>parse_feature_payload</code>)</h3>
+  <p>
+    Thay vì gọi <code>malloc</code> tạo cây đối tượng JSON mỗi 25ms, hàm <code>parse_feature_payload()</code> chép bản tin vào mảng tĩnh <code>char buf[1024]</code> trên Stack, dùng <code>strtof()</code> quét trực tiếp 15 số thực giữa cặp ngoặc vuông <code>[...]</code> nạp thẳng vào <code>ctx-&gt;raw_features[15]</code>.
+  </p>
+
+  <h3>Trạm 2: Chuẩn hóa Z-Score (<code>semg_normalize_features</code>)</h3>
+  <p>
+    Vì lúc huấn luyện trên Python ta đã chuẩn hóa <code>(X_train - mean) / std</code>, nên ở C ta dùng đúng 2 mảng hằng số trong <code>inc/model_params.h</code> để đưa 15 đặc trưng về cùng thang đo trước khi vào mạng nơ-ron.
+  </p>
+
+  <h3>Trạm 3: Suy luận Dual-Engine (<code>ml_runtime_infer</code>)</h3>
+  <p>
+    Server ưu tiên kiểm tra xem có file <code>tensorflowlite_c.dll</code> cạnh <code>semg_server.exe</code> không. Nếu không có, nó tự động chạy hàm <code>mlp_infer_builtin()</code> tính trực tiếp 3 tầng <code>Dense(64, ReLU) → Dense(32, ReLU) → Dense(4, Softmax)</code> bằng trọng số trích xuất từ <code>semg_mlp.tflite</code> trong <code>inc/tflite_weights.h</code>.
+  </p>
+
+  <h3>Trạm 4 &amp; 5: Chống nhảy nhãn (<code>post_process_vote</code>) &amp; Phát lệnh MQTT</h3>
+  <p>
+    Nếu độ tự tin lớn nhất <code>best_prob &lt; 0.75f</code>, Server ép nhãn về <code>0 (RESTING)</code> để tránh cử động nhầm khi cơ tay mới hơi căng. Sau đó, nhãn phải xuất hiện <strong>đồng nhất trong cả 3 cửa sổ liên tiếp</strong> (<code>vote_buf[3]</code>) và <strong>khác với lệnh vừa gửi trước đó</strong> (<code>stable_cls != ctx-&gt;last_published_gesture</code>) thì Server mới gọi <code>mosquitto_publish()</code> bắn xuống thiết bị đích.
+  </p>
+
+  <h2>4. Kiểm tra Nhanh (Retrieval Practice)</h2>
+
+  <div class="quiz-card" data-correct="1" data-explain="Khi xác suất thấp hơn ngưỡng 0.75, hàm post_process_vote tự động gán best_cls = 0 (RESTING) để bảo vệ an toàn.">
+    <p><strong>Câu 1:</strong> Trong <code>post_process_vote()</code>, chuyện gì xảy ra nếu cử chỉ có xác suất cao nhất chỉ đạt <code>0.60</code> (nhỏ hơn ngưỡng <code>0.75</code>)?</p>
+    <button class="quiz-option">Server giữ nguyên cử chỉ của gói tin ngay trước đó</button>
+    <button class="quiz-option">Server ép nhãn dự đoán của gói tin về trạng thái RESTING</button>
+    <button class="quiz-option">Server lập tức ngắt kết nối MQTT để chờ khởi động lại</button>
+    <div class="quiz-feedback"></div>
+  </div>
+
+  <div class="quiz-card" data-correct="2" data-explain="Nhờ điều kiện stable_cls != ctx->last_published_gesture, Server chỉ bắn đúng 1 lệnh MQTT khi người dùng chuyển sang cử chỉ mới.">
+    <p><strong>Câu 2:</strong> Nếu người đeo giữ nguyên động tác <code>FIST</code> suốt 5 giây (200 gói tin liên tiếp đều ra <code>FIST</code>), Server sẽ publish bao nhiêu gói lệnh xuống End Device?</p>
+    <button class="quiz-option">Server bắn đủ hai trăm gói tin xuống thiết bị đầu cuối</button>
+    <button class="quiz-option">Server bắn một gói tin sau mỗi ba cửa sổ liên tiếp</button>
+    <button class="quiz-option">Server chỉ bắn duy nhất một gói tin khi vừa chốt lệnh</button>
+    <div class="quiz-feedback"></div>
+  </div>
+
+  <div class="callout">
+    <strong>Hỏi đáp cùng Agent:</strong> Nếu có bất kỳ dòng code nào trong <code>Server/src/main.c</code> (như cách hoạt động của con trỏ hàm DLL hay cách chỉnh độ nhạy <code>VOTE_WINDOW_SIZE</code>) mà ní muốn mổ xẻ sâu hơn, cứ nhắn hỏi tôi ngay trong khung chat nhé!
+  </div>
+
+  <script src="../assets/quiz.js"></script>
+  <script>
+    let seq = 0;
+    let voteBuf = [null, null, null];
+    let voteIdx = 0;
+    let voteCount = 0;
+    let lastPublished = -1;
+    const labels = ["RESTING", "FIST", "OPEN_HAND", "POINTING"];
+
+    function simSend(clsId, name, conf) {
+      seq++;
+      document.querySelectorAll('.stage-card').forEach(c => c.classList.add('active'));
+
+      let effectiveCls = conf < 0.75 ? 0 : clsId;
+      voteBuf[voteIdx] = effectiveCls;
+      voteIdx = (voteIdx + 1) % 3;
+      if (voteCount < 3) voteCount++;
+
+      let allSame = (voteCount === 3) && (voteBuf[0] === effectiveCls && voteBuf[1] === effectiveCls && voteBuf[2] === effectiveCls);
+      let published = false;
+
+      if (allSame && effectiveCls !== lastPublished) {
+        lastPublished = effectiveCls;
+        published = true;
+      }
+
+      document.getElementById('st1_txt').textContent = `seq=${seq}, 15 floats OK`;
+      document.getElementById('st2_txt').textContent = `Đã chuẩn hóa Z-score`;
+      document.getElementById('st3_txt').textContent = `Max: ${name} (${(conf*100).toFixed(0)}%)`;
+      document.getElementById('st4_txt').textContent = `vote_buf: [${voteBuf.map(x => x === null ? '-' : labels[x]).join(', ')}]`;
+      document.getElementById('st5_txt').textContent = published
+        ? `ĐÃ BẮN: ${labels[effectiveCls]}!`
+        : (allSame ? `Giữ nguyên (${labels[effectiveCls]}), không bắn lặp` : `Chưa đủ 3 phiếu giống nhau`);
+
+      let log = `[INFER] seq=${seq} | raw=${name} (${(conf*100).toFixed(1)}%)\n`;
+      if (conf < 0.75) {
+        log += `  -> Độ tự tin < 75%, ép về RESTING (0) trước khi đưa vào vote_buf.\n`;
+      }
+      log += `  -> Bộ đệm biểu quyết 3 cửa sổ: [${voteBuf.map(x => x === null ? '-' : labels[x]).join(', ')}]\n`;
+      if (published) {
+        log += `  >>> [ACTION PUBLISHED] semg/v1/control/gesture -> {"seq":${seq},"gesture_id":${effectiveCls},"label":"${labels[effectiveCls]}","conf":${conf.toFixed(3)}}`;
+      } else if (allSame) {
+        log += `  -> Đã ổn định ở ${labels[effectiveCls]} nhưng trùng với last_published_gesture nên không bắn lặp.`;
+      } else {
+        log += `  -> Chưa đồng nhất đủ 3 cửa sổ liên tiếp -> Chờ gói tiếp theo.`;
+      }
+      document.getElementById('simLog').textContent = log;
+    }
+
+    function simReset() {
+      seq = 0;
+      voteBuf = [null, null, null];
+      voteIdx = 0;
+      voteCount = 0;
+      lastPublished = -1;
+      document.querySelectorAll('.stage-card').forEach(c => c.classList.remove('active'));
+      document.getElementById('st1_txt').textContent = 'Chờ bản tin JSON...';
+      document.getElementById('st2_txt').textContent = '(f[i] - MEAN[i]) / STD[i]';
+      document.getElementById('st3_txt').textContent = 'MLP 15 → 64 → 32 → 4';
+      document.getElementById('st4_txt').textContent = 'vote_buf: [-, -, -]';
+      document.getElementById('st5_txt').textContent = 'Chưa phát lệnh';
+      document.getElementById('simLog').textContent = '// Đã reset trạng thái Server.';
+    }
+  </script>
+</body>
+</html>

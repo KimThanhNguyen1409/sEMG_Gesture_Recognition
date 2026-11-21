@@ -1,12 +1,36 @@
+# Build & Binaries
+build/
+Firmware/build/
+*.exe
+Server/*.dll
+*.o
+*.a
+*.bin
+*.elf
+*.map
+
+# Editor & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.history/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.ipynb_checkpoints
+
+# KiCad & EDA
+KiCad/
 *.pdf
 *.docx
 *.rpt
 *.kicad_prl
 _autosave*
 kicad_workspace/
-EOF
-
-.history/
 TH/
 *.lck
 .mcp-backups/
+EOF
