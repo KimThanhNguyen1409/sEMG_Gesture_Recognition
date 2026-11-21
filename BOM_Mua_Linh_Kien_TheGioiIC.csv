@@ -1,0 +1,41 @@
+﻿STT,Nhóm,Mã hiển thị (Ref),Tên linh kiện / Trị số,Đóng gói (Footprint),Số lượng mạch cần,Số lượng nên mua,Đơn giá tham khảo (VNĐ/cái),Thành tiền dự tính (VNĐ),Từ khóa tìm kiếm trên Thegioiic.com,Ghi chú kỹ thuật khi chọn mua
+1,IC,U4 U5 U6 U7 U8,MCP6004-I/SL,SOIC-14 (SOP-14),5,6,8000,48000,MCP6004-I/SL hoặc MCP6004 SOP14,IC Op-Amp Quad 4 kênh Rail-to-Rail. Mua gói SOP-14 chân dán. (Nếu Thegioiic hết hàng thì Shopee bán vỉ 5 con ~35-50k).
+2,IC,U3,ESP32-S Ai-Thinker,SMD-38 (ESP32-WROOM-32),1,1,115140,115140,ESP32-S Ai-Thinker (Mã IC38424),Module WiFi + Bluetooth SMD-38 của Ai-Thinker (38 chân dán + 1 chân GND bụng).
+3,IC,U9,CH340C,SOIC-16 (SOP-16),1,2,14820,29640,CH340C SOP-16 (Mã IC36480),IC chuyển đổi USB sang UART có sẵn dao động nội 12MHz (không cần thạch anh rời).
+4,IC,U1,TP4056,SOP-8-EP (ESOP-8),1,2,5700,11400,TP4056 SOP8,IC sạc pin Li-Po 1A. Chọn loại chân dán SOP-8 có pad tản nhiệt dưới bụng.
+5,IC,U2,AP2112K-3.3,SOT-23-5,1,2,4500,9000,AP2112K-3.3 hoặc SOT-23-5 3.3V,LDO 3.3V 600mA cực thấp ồn. (Có thể thay bằng RT9193-33GB hoặc ME6211C33M5G cùng chân SOT-23-5).
+6,Transistor,Q1 Q2,MMBT3904 (hoặc S8050 / BC817),SOT-23,2,5,300,1500,MMBT3904 SOT-23 hoặc BC817 SOT-23,Transistor NPN dán SOT-23 (Chân 1=B, 2=E, 3=C) cho mạch tự động nạp code DTR/RTS.
+7,Tụ điện,C21 C22 C31 C32 C41 C42,100nF (0.1uF / 104),SMD 1206,6,10,1200,12000,Tụ 1206 100nF hoặc Tụ 1206 0.1uF,QUAN TRỌNG: 6 tụ đầu vào CCIA. Ưu tiên chọn loại gốm C0G / NP0 sai số 5% hoặc 1% (chịu áp >= 25V) để giữ CMRR cân bằng.
+8,Tụ điện,C23 C24 C33 C34 C43 C44,2.2nF (mã 222),SMD 0805,6,10,350,3500,Tụ 0805 2.2nF hoặc Tụ 0805 222,Tụ hồi tiếp CCIA (G=45.45x). Ưu tiên C0G/NP0 hoặc X7R.
+9,Tụ điện,C11 C16 C25 C35 C45 C63 C64 C65 C66 C67,100nF (0.1uF / 104),SMD 0805,10,20,250,5000,Tụ 0805 100nF hoặc Tụ 0805 0.1uF,Tụ lọc HPF 19.4Hz, tụ lọc V3 của CH340C và các tụ bypass nguồn 3.3V.
+10,Tụ điện,C26 C36 C46,22nF (mã 223),SMD 0805,3,10,350,3500,Tụ 0805 22nF hoặc Tụ 0805 223,Tụ lọc thông thấp Sallen-Key Butterworth 490Hz (C1).
+11,Tụ điện,C27 C37 C47,10nF (mã 103),SMD 0805,3,10,300,3000,Tụ 0805 10nF hoặc Tụ 0805 103,Tụ lọc thông thấp Sallen-Key Butterworth 490Hz (C2).
+12,Tụ điện,C13 C14 C15 C62,1nF (mã 102),SMD 0805,4,10,300,3000,Tụ 0805 1nF hoặc Tụ 0805 102,Tụ tích phân DRL (C62) và 3 tụ lọc RC trước ngõ vào ADC1 của ESP32-S.
+13,Tụ điện,C1 C2 C4 C10 C60 C61 C68,10uF (mã 106),SMD 0805,7,15,650,9750,Tụ 0805 10uF,Tụ lọc nguồn VBUS, VBAT, +3V3 và lọc ổn định áp chuẩn VREF = 1.65V. Chọn tụ MLCC chịu áp >= 10V (10V/16V/25V).
+14,Tụ điện,C3,4.7uF,SMD 0805,1,5,550,2750,Tụ 0805 4.7uF,Tụ ngõ vào LDO AP2112K.
+15,Tụ điện,C12,1uF (mã 105),SMD 0805,1,5,400,2000,Tụ 0805 1uF,Tụ định thì trễ chân EN (Reset) cho ESP32-S.
+16,Điện trở,R21 R22 R31 R32 R41 R42,150kΩ (mã 154),SMD 0805,6,10,150,1500,Trở 0805 150k,Trở bảo vệ ngõ vào điện cực người dùng đạt chuẩn an toàn y tế IEC 60601-1 (giới hạn dòng rò < 25uA).
+17,Điện trở,R23 R24 R33 R34 R43 R44 R68,10MΩ (mã 106),SMD 0805,7,10,250,2500,Trở 0805 10M,Trở phân cực ngõ vào Buffer về VREF và trở hồi tiếp DC mạch DRL.
+18,Điện trở,R25 R26 R35 R36 R45 R46,22MΩ (mã 226),SMD 0805,6,10,300,3000,Trở 0805 22M,Trở hồi tiếp DC tầng CCIA định hình tần số cắt dưới 3.3Hz.
+19,Điện trở,R27 R37 R47,82kΩ (mã 823),SMD 0805,3,10,150,1500,Trở 0805 82k,Trở định tần số cắt tầng lọc thông cao HPF 19.4Hz.
+20,Điện trở,R29 R39 R49,15kΩ (mã 153),SMD 0805,3,10,150,1500,Trở 0805 15k,Trở hồi tiếp RF tầng HPF (độ lợi G = 2.5x).
+21,Điện trở,R10 R11 R12 R13 R28 R38 R48,10kΩ (mã 103),SMD 0805,7,20,100,2000,Trở 0805 10k,Trở RG tầng HPF, trở pull-up EN/IO0 và trở cực Base của Q1/Q2 mạch Auto-Reset.
+22,Điện trở,R30 R40 R50 R51 R52 R53,22kΩ (mã 223),SMD 0805,6,10,150,1500,Trở 0805 22k,Cặp trở R1 R2 cho mạch lọc thông thấp tích cực Sallen-Key 490Hz.
+23,Điện trở,R60 R61 R62 R63 R64 R65 R66 R67,100kΩ (mã 104),SMD 0805,8,20,100,2000,Trở 0805 100k,Cầu chia áp VREF 1.65V và 6 trở lấy trung bình sai số chế độ chung vào mạch DRL.
+24,Điện trở,R69,390kΩ (mã 394),SMD 0805,1,5,150,750,Trở 0805 390k,Trở an toàn bảo vệ ngõ ra DRL nối về cơ thể người.
+25,Điện trở,R1 R2,5.1kΩ (mã 512),SMD 0805,2,10,150,1500,Trở 0805 5.1k,Trở kéo CC1 CC2 cổng Type-C nhận diện nguồn cấp sạc 5V.
+26,Điện trở,R3,2.4kΩ (mã 242),SMD 0805,1,5,150,750,Trở 0805 2.4k,Trở cấu hình dòng sạc TP4056 (xấp xỉ 500mA an toàn cho pin Li-Po 500-1000mAh).
+27,Điện trở,R4 R5 R6 R17,1kΩ (mã 102),SMD 0805,4,20,100,2000,Trở 0805 1k,Trở hạn dòng cho các đèn LED báo nguồn sạc và trạng thái.
+28,Điện trở,R14 R15 R16,100Ω (mã 101),SMD 0805,3,10,150,1500,Trở 0805 100R,Trở lọc RC trước chân ADC1 (GPIO36, GPIO39, GPIO34) của ESP32-S.
+29,LED,D1,Đỏ (RED),LED 0805 SMD,1,5,300,1500,LED 0805 Đỏ,LED báo trạng thái sạc pin (CHRG).
+30,LED,D2,Xanh lá (GREEN),LED 0805 SMD,1,5,350,1750,LED 0805 Xanh lá,LED báo sạc đầy pin (STDBY).
+31,LED,D3,Xanh dương (BLUE),LED 0805 SMD,1,5,400,2000,LED 0805 Xanh dương,LED báo nguồn hệ thống 3.3V (PWR).
+32,LED,D4,Vàng hoặc Xanh,LED 0805 SMD,1,5,350,1750,LED 0805 Vàng / Xanh,LED chỉ báo trạng thái chương trình nối chân IO4 ESP32-S.
+33,Đầu nối,J1,USB Type-C 16 chân,TYPE-C-31-M-12 SMD,1,2,1800,3600,Cổng USB Type C 16 chân SMD,Cổng sạc và nạp code qua CH340C cho ESP32-S. Chân dán SMD có 4 chấu định vị xuyên lỗ.
+34,Đầu nối,J2,JST-PH 2-pin đực thẳng,JST-PH-2P 2.0mm Vertical,1,2,300,600,Jack JST PH2.0 2P đực thẳng,Đầu cắm giắc pin Li-Po 3.7V tiêu chuẩn (khoảng cách chân 2.0mm).
+35,Đầu nối,J3,Header 1x8P 2.54mm đực thẳng,PinHeader 1x08 P=2.54mm,1,1 thanh,2500,2500,Hàng rào đực 1x40 2.54mm,Hàng rào cắm dây ra 3 cặp điện cực đo và cực DRL VREF.
+36,Nút nhấn,SW2 SW3,Nút nhấn SMD 2 chân,SW_Push SMD (Alps SKRK 3.9x2.9mm),2,5,800,4000,Nút nhấn SMD 2 chân 3x4 hoặc 3x6,Nút bấm Reset (EN) và nút Boot (IO0).
+37,Công tắc,SW1,Công tắc gạt trượt SMD 3 chân,SW_SPDT_PCM12,1,2,1500,3000,Công tắc gạt SMD 3 chân hoặc PCM12,Công tắc nguồn On/Off từ pin sang mạch.
+38,Phụ kiện,Điện cực,Miếng dán điện cực tim/cơ y tế ECG/EMG (nút Snap),Điện cực dán y tế dùng 1 lần (bịch 50 cái),7,1 bịch (50 cái),50000,50000,Điện cực dán nút bấm Snap 3M / Contec hoặc Miếng dán điện cực tim,Bịch 50 miếng dán có sẵn gel dẫn điện (dùng 2 miếng/kênh x 3 kênh + 1 miếng DRL tham chiếu).
+39,Phụ kiện,Cáp nối,Bộ dây cáp kẹp điện cực nút bấm (Snap to Dupont / Jack 3.5),Dây cáp y tế chuyên dụng (bộ 10 sợi),7,1 bộ (10 sợi),70000,70000,Dây dẫn điện cực ECG Snap to Dupont hoặc Dây điện cực nút bấm 3.5mm,Dây nối từ các nút dán trên bắp tay về trạm cắm Header J3 trên bo mạch.
+,,,TỔNG CHI PHÍ LINH KIỆN DỰ TÍNH (ĐÃ BAO GỒM DỰ PHÒNG & PHỤ KIỆN ĐO),,,,,418680,,Ước tính khoảng 418.000 VNĐ cho toàn bộ 119 linh kiện bo mạch + bịch 50 điện cực dán và bộ 10 dây cáp kẹp.

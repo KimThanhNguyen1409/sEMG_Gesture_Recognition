@@ -1,11 +1,13 @@
 /**
  * @file semg_adc.h
- * @brief Hardware ADC1 Oneshot and GPTimer driver for 1 kHz deterministic sampling.
+ * @brief Continuous ADC DMA driver with Ping-Pong Buffering and Crosstalk Immunity.
  */
 
 #pragma once
 
 #include "esp_err.h"
+#include "esp_adc/adc_continuous.h"
+#include "esp_adc/adc_cali.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "semg_config.h"
@@ -15,42 +17,51 @@ extern "C" {
 #endif
 
 /**
- * @brief Initialize ADC1 unit, configure channels (GPIO 34, 35, 32), and initialize eFuse calibration.
+ * @brief Initialize Continuous ADC DMA with 3-channel pattern on ADC1,
+ *        eFuse line-fitting calibration, and Ping-Pong double buffering.
  *
- * @return esp_err_t ESP_OK on success, or appropriate error code.
+ * @param[in] worker_task_to_notify TaskHandle of the processing worker to unblock on DMA frame ready.
+ * @return esp_err_t                ESP_OK on success.
  */
-esp_err_t semg_adc_init(void);
+esp_err_t semg_adc_dma_init(TaskHandle_t worker_task_to_notify);
 
 /**
- * @brief Read all 3 configured sEMG channels.
- *
- * @param[out] out_mv  Array of calibrated voltages in millivolts [0..2]
- * @param[out] out_raw Array of raw 12-bit ADC counts [0..2]
- * @return esp_err_t   ESP_OK on success, or error code on read failure.
- */
-esp_err_t semg_adc_read_all(int16_t out_mv[SEMG_NUM_CHANNELS], int16_t out_raw[SEMG_NUM_CHANNELS]);
-
-/**
- * @brief Initialize the hardware GPTimer to trigger an alarm every 1000 us (1 kHz).
- *
- * @param[in] task_to_notify FreeRTOS TaskHandle to wake up on each timer tick.
- * @return esp_err_t         ESP_OK on success.
- */
-esp_err_t semg_timer_init(TaskHandle_t task_to_notify);
-
-/**
- * @brief Start the sampling GPTimer.
+ * @brief Start continuous DMA sampling hardware.
  *
  * @return esp_err_t ESP_OK on success.
  */
-esp_err_t semg_timer_start(void);
+esp_err_t semg_adc_dma_start(void);
 
 /**
- * @brief Stop the sampling GPTimer.
+ * @brief Stop continuous DMA sampling hardware.
  *
  * @return esp_err_t ESP_OK on success.
  */
-esp_err_t semg_timer_stop(void);
+esp_err_t semg_adc_dma_stop(void);
+
+/**
+ * @brief Read latest conversion frame from DMA into the Ping-Pong buffer.
+ *
+ * @param[out] out_dest Pointer to destination buffer (must be at least SEMG_DMA_FRAME_SIZE bytes).
+ * @param[out] out_len  Number of bytes actually read.
+ * @return esp_err_t    ESP_OK on success, or ESP_ERR_TIMEOUT if frame not ready.
+ */
+esp_err_t semg_adc_dma_read_frame(uint8_t *out_dest, uint32_t *out_len);
+
+/**
+ * @brief Map ADC hardware channel (4, 6, 7) to logical channel index (0, 1, 2).
+ *
+ * @param[in] hardware_chan ADC channel (e.g. ADC_CHANNEL_6).
+ * @return int              Logical index 0..2, or -1 if invalid.
+ */
+int semg_adc_map_channel(uint8_t hardware_chan);
+
+/**
+ * @brief Get the eFuse calibration handle.
+ *
+ * @return adc_cali_handle_t Calibration handle or NULL if not supported.
+ */
+adc_cali_handle_t semg_adc_get_cali_handle(void);
 
 #ifdef __cplusplus
 }

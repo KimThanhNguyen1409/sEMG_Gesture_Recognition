@@ -1,15 +1,20 @@
 /**
  * @file main.c
- * @brief Main entry point for ESP32-S 3-Channel sEMG Data Acquisition Firmware.
+ * @brief High-performance ESP32-S 3-Channel sEMG Data Acquisition System.
  *
- * Architecture:
- * - Deterministic 1 kHz Sampling via Hardware GPTimer Alarm ISR -> Direct Task Notification.
- * - Producer Task (Pinned to Core 0): Reads ADC1 channels (GPIO 34, 35, 32), runs 50 Hz Biquad Notch DSP.
- * - Zero-malloc FreeRTOS Static Queue.
- * - Consumer Task (Pinned to Core 1): Formats CSV stream and pushes over High-Speed UART0.
- *
- * Compliance:
- * - MISRA-C / Embedded Safety: Zero heap allocation in runtime, full NULL and error code checking.
+ * Architecture Highlights:
+ * - Continuous ADC DMA with Hardware Clock (60 kHz aggregate, 20 kHz/channel).
+ * - Ping-Pong (Double) Buffering with Word-Aligned internal memory.
+ * - ZERO Floating-Point math in ISRs (all integer arithmetic).
+ * - Channel Switching Settling Time: 16.67 us (> 20x tau of RC anti-kickback filter) -> Zero Crosstalk.
+ * - 6-Stage Preprocessing Pipeline:
+ *   1. Validation (Range & Stuck-At Flatline Detection)
+ *   2. Oversampling Decimation & Averaging (20:1 -> 1 kHz target rate)
+ *   3. Boxcar FIR Moving Average (8-tap, power-of-2 shift)
+ *   4. eFuse Calibration
+ *   5. Piecewise Linearization Curve Compensation
+ *   6. Scaling to Physical Units (Referred-To-Input uV & mV)
+ * - FreeRTOS Dual-Core Producer-Consumer Architecture (Zero-malloc runtime).
  */
 
 #include <stdio.h>
@@ -23,10 +28,10 @@
 
 #include "semg_config.h"
 #include "semg_adc.h"
-#include "semg_filter.h"
+#include "semg_pipeline.h"
 #include "semg_uart.h"
 
-static const char *TAG = "SEMG_APP";
+static const char *TAG = "SEMG_MAIN";
 
 /* ========================================================================= */
 /*                       STATIC MEMORY ALLOCATION                            */
@@ -34,8 +39,8 @@ static const char *TAG = "SEMG_APP";
 
 /* Static Queue Storage */
 static StaticQueue_t s_queue_buf;
-static uint8_t       s_queue_storage[SEMG_QUEUE_LENGTH * sizeof(semg_sample_t)];
-static QueueHandle_t s_sample_queue = NULL;
+static uint8_t       s_queue_storage[SEMG_QUEUE_LENGTH * sizeof(semg_processed_frame_t)];
+static QueueHandle_t s_frame_queue = NULL;
 
 /* Static Sampler Task (Core 0) */
 static StaticTask_t  s_sampler_task_buf;
@@ -48,11 +53,11 @@ static StackType_t   s_uart_task_stack[SEMG_UART_STACK_SIZE];
 static TaskHandle_t  s_uart_task_handle = NULL;
 
 /* Performance Counters */
-static volatile uint32_t s_samples_acquired = 0;
-static volatile uint32_t s_dropped_samples  = 0;
+static volatile uint32_t s_frames_processed = 0;
+static volatile uint32_t s_dropped_frames   = 0;
 
 /* ========================================================================= */
-/*                          CORE 0: SAMPLER TASK                             */
+/*                   CORE 0: SAMPLER & PIPELINE WORKER                       */
 /* ========================================================================= */
 
 static void semg_sampler_task(void *pvParameters)
@@ -60,90 +65,93 @@ static void semg_sampler_task(void *pvParameters)
     (void)pvParameters;
     ESP_LOGI(TAG, "Sampler Task started on Core %d (Priority %d)", xPortGetCoreID(), uxTaskPriorityGet(NULL));
 
-    /* Initialize 3 independent Biquad Notch filters for 3 sEMG channels */
-    semg_biquad_t notch_filters[SEMG_NUM_CHANNELS];
-    for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
-        semg_filter_init(&notch_filters[ch],
-                         (float)SEMG_SAMPLE_RATE_HZ,
-                         SEMG_NOTCH_FREQ_HZ,
-                         SEMG_NOTCH_Q);
-    }
+    /* Initialize 6-stage integer preprocessing pipeline */
+    semg_pipeline_state_t pipeline;
+    semg_pipeline_init(&pipeline, semg_adc_get_cali_handle());
 
-    semg_sample_t current_sample;
+    /* Memory-aligned local reception buffer */
+    WORD_ALIGNED_ATTR uint8_t raw_dma_frame[SEMG_DMA_FRAME_SIZE];
+    uint32_t bytes_read = 0;
+
+    semg_processed_frame_t processed_frame;
 
     while (1) {
-        /* Block until woken up by Hardware GPTimer alarm ISR (< 1 us jitter) */
+        /* Block until DMA conversion frame is ready (< 1 us ISR latency) */
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        s_samples_acquired++;
-        current_sample.timestamp_ms = (uint32_t)(esp_timer_get_time() / 1000ULL);
+        /* Read from DMA Ping-Pong buffer */
+        while (semg_adc_dma_read_frame(raw_dma_frame, &bytes_read) == ESP_OK && bytes_read > 0) {
+            int32_t ch_accum[SEMG_NUM_CHANNELS] = {0};
+            uint16_t ch_count[SEMG_NUM_CHANNELS] = {0};
 
-        /* Read 3-channel ADC with eFuse calibration */
-        esp_err_t ret = semg_adc_read_all(current_sample.voltage_mv, current_sample.raw_adc);
-        if (ret == ESP_OK) {
-            for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
-#if (ENABLE_DSP_FILTERING == 1)
-                /* Subtract Virtual Ground DC bias (1.65V = 1650 mV) */
-                float ac_signal = (float)current_sample.voltage_mv[ch] - SEMG_DC_OFFSET_MV;
+            /* Demultiplex 3 channels from DMA byte stream (Type1: 12-bit data + 4-bit chan) */
+            for (uint32_t i = 0; i < bytes_read; i += SOC_ADC_DIGI_RESULT_BYTES) {
+                adc_digi_output_data_t *p = (adc_digi_output_data_t *)&raw_dma_frame[i];
+                uint8_t chan = p->type1.channel;
+                uint16_t val = p->type1.data;
 
-                /* 50 Hz Biquad Notch Filter processing */
-                current_sample.filtered[ch] = semg_filter_process(&notch_filters[ch], ac_signal);
-#else
-                current_sample.filtered[ch] = (float)current_sample.voltage_mv[ch];
-#endif
+                int ch_idx = semg_adc_map_channel(chan);
+                if (ch_idx >= 0 && ch_idx < SEMG_NUM_CHANNELS) {
+                    ch_accum[ch_idx] += val;
+                    ch_count[ch_idx]++;
+                }
             }
 
-            /* Push to FreeRTOS Queue (non-blocking) */
-            if (xQueueSend(s_sample_queue, &current_sample, 0) != pdPASS) {
-                s_dropped_samples++;
+            /* Execute 6-stage zero-float preprocessing pipeline */
+            processed_frame.timestamp_ms = (uint32_t)(esp_timer_get_time() / 1000ULL);
+            semg_pipeline_process_frame(&pipeline, ch_accum, ch_count, &processed_frame);
+            s_frames_processed++;
+
+            /* Push processed frame to FreeRTOS Queue (non-blocking) */
+            if (xQueueSend(s_frame_queue, &processed_frame, 0) != pdPASS) {
+                s_dropped_frames++;
             }
         }
     }
 }
 
 /* ========================================================================= */
-/*                           CORE 1: UART TASK                               */
+/*                          CORE 1: UART STREAMER                            */
 /* ========================================================================= */
 
 static void semg_uart_task(void *pvParameters)
 {
     (void)pvParameters;
-    ESP_LOGI(TAG, "UART Task started on Core %d (Priority %d)", xPortGetCoreID(), uxTaskPriorityGet(NULL));
+    ESP_LOGI(TAG, "UART Streamer Task started on Core %d (Priority %d)", xPortGetCoreID(), uxTaskPriorityGet(NULL));
 
-    semg_sample_t sample_to_send;
+    semg_processed_frame_t frame_to_send;
 
     while (1) {
-        /* Block until a new sample arrives from the Sampler task */
-        if (xQueueReceive(s_sample_queue, &sample_to_send, portMAX_DELAY) == pdPASS) {
-            semg_uart_send_sample(&sample_to_send);
+        if (xQueueReceive(s_frame_queue, &frame_to_send, portMAX_DELAY) == pdPASS) {
+            semg_uart_send_frame(&frame_to_send);
         }
     }
 }
 
 /* ========================================================================= */
-/*                              APP MAIN ENTRY                               */
+/*                               APP MAIN                                    */
 /* ========================================================================= */
 
 void app_main(void)
 {
     ESP_LOGI(TAG, "==========================================================");
-    ESP_LOGI(TAG, "  ESP32-S 3-CH sEMG RAW DATA ACQUISITION FIRMWARE         ");
-    ESP_LOGI(TAG, "  Sampling: 1000 Hz | DSP Notch: 50 Hz | Transport: UART  ");
+    ESP_LOGI(TAG, "  ESP32-S 3-CH sEMG DMA PIPELINE FIRMWARE                 ");
+    ESP_LOGI(TAG, "  DMA Rate: 60 kHz | Decimated: 1000 Hz | Zero-Float ISR  ");
+    ESP_LOGI(TAG, "  Boxcar FIR + Linearization LUT + Health Diagnostics     ");
     ESP_LOGI(TAG, "==========================================================");
 
-    /* 1. Create Static Queue */
-    s_sample_queue = xQueueCreateStatic(SEMG_QUEUE_LENGTH,
-                                        sizeof(semg_sample_t),
-                                        s_queue_storage,
-                                        &s_queue_buf);
-    if (s_sample_queue == NULL) {
-        ESP_LOGE(TAG, "Failed to create static sample queue!");
+    /* 1. Create Static FreeRTOS Queue */
+    s_frame_queue = xQueueCreateStatic(SEMG_QUEUE_LENGTH,
+                                       sizeof(semg_processed_frame_t),
+                                       s_queue_storage,
+                                       &s_queue_buf);
+    if (s_frame_queue == NULL) {
+        ESP_LOGE(TAG, "Failed to create static frame queue!");
         return;
     }
 
-    /* 2. Initialize Hardware Peripherals */
+    /* 2. Initialize Hardware UART */
     ESP_ERROR_CHECK(semg_uart_init());
-    ESP_ERROR_CHECK(semg_adc_init());
 
     /* 3. Create Static FreeRTOS Tasks */
     s_sampler_task_handle = xTaskCreateStaticPinnedToCore(
@@ -176,24 +184,27 @@ void app_main(void)
         return;
     }
 
-    /* 4. Initialize and Start Hardware GPTimer */
-    ESP_ERROR_CHECK(semg_timer_init(s_sampler_task_handle));
-    ESP_ERROR_CHECK(semg_timer_start());
+    /* 4. Initialize Continuous ADC DMA with Sampler Task Notification */
+    ESP_ERROR_CHECK(semg_adc_dma_init(s_sampler_task_handle));
 
-    ESP_LOGI(TAG, "System running. Stream active on UART%d (%d baud).", SEMG_UART_PORT, SEMG_UART_BAUDRATE);
+    /* 5. Start DMA Sampling Hardware */
+    ESP_ERROR_CHECK(semg_adc_dma_start());
 
-    /* 5. Background Monitor Loop (Runs at idle priority in main task) */
-    uint32_t last_sample_count = 0;
+    ESP_LOGI(TAG, "Continuous DMA Running. Output: %s",
+             SEMG_UART_OUTPUT_RTI_UV ? "RTI uV" : "Calibrated mV");
+
+    /* 6. Background Monitor Loop */
+    uint32_t last_count = 0;
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(5000));
-        uint32_t current_samples = s_samples_acquired;
-        uint32_t delta_samples = current_samples - last_sample_count;
-        last_sample_count = current_samples;
+        uint32_t cur = s_frames_processed;
+        uint32_t delta = cur - last_count;
+        last_count = cur;
 
-        float effective_rate = (float)delta_samples / 5.0f;
-        UBaseType_t queue_spaces = uxQueueSpacesAvailable(s_sample_queue);
+        float rate = (float)delta / 5.0f;
+        UBaseType_t free_slots = uxQueueSpacesAvailable(s_frame_queue);
 
-        ESP_LOGI(TAG, "[MONITOR] Rate: %.1f Hz | Queue Free: %u/%d | Dropped: %lu",
-                 effective_rate, (unsigned int)queue_spaces, SEMG_QUEUE_LENGTH, (unsigned long)s_dropped_samples);
+        ESP_LOGI(TAG, "[MONITOR] Output Rate: %.1f Hz | Queue Free: %u/%d | Dropped: %lu",
+                 rate, (unsigned int)free_slots, SEMG_QUEUE_LENGTH, (unsigned long)s_dropped_frames);
     }
 }

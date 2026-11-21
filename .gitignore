@@ -1,14 +1,36 @@
-/ML_Model/datasets/
-/ML_Model/semg_mlp.tflite
-run_server.bat
-semg_server.exe
-/.vscode
-/Server/*.dll
-/assets
-/learning-records
-/lessons
-/reference
-/Firmware/build
-/Firmware/build.bat
-/Firmware/flash.bat
-/Firmware/README.md
+# Build & Binaries
+build/
+Firmware/build/
+*.exe
+Server/*.dll
+*.o
+*.a
+*.bin
+*.elf
+*.map
+
+# Editor & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.history/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.ipynb_checkpoints
+
+# KiCad & EDA
+KiCad/
+*.pdf
+*.docx
+*.rpt
+*.kicad_prl
+_autosave*
+kicad_workspace/
+TH/
+*.lck
+.mcp-backups/
+EOF

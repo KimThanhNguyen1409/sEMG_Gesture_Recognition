@@ -1,6 +1,6 @@
 /**
  * @file semg_uart.h
- * @brief High-speed UART output driver for serial plotter and terminal visualization.
+ * @brief High-speed UART output driver for streaming processed sEMG frames.
  */
 
 #pragma once
@@ -20,11 +20,11 @@ extern "C" {
 esp_err_t semg_uart_init(void);
 
 /**
- * @brief Send a single multi-channel sample over UART in CSV format ("ch1,ch2,ch3\r\n").
+ * @brief Send a single processed multi-channel frame over UART in CSV format.
  *
- * @param[in] sample Pointer to sample structure.
+ * @param[in] frame Pointer to processed frame.
  */
-void semg_uart_send_sample(const semg_sample_t *sample);
+void semg_uart_send_frame(const semg_processed_frame_t *frame);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Reference: sEMG C Server Backend Cheatsheet</title>
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <div class="nav-bar">
+    <span>Tài liệu Tham khảo Nhanh (Cheatsheet)</span>
+    <a href="../lessons/0001-server-backend-flow.html">← Quay lại Bài học 0001</a>
+  </div>
+
+  <h1>C Inference Server Backend Cheatsheet</h1>
+  <p>Tóm tắt toàn bộ cấu trúc dữ liệu, hàm xử lý và định dạng gói tin MQTT trong <code>Server/src/main.c</code>.</p>
+
+  <h2>1. Bảng Ánh xạ 5 Bước Xử lý (5-Stage Pipeline)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Giai đoạn</th>
+        <th>Hàm trong <code>main.c</code> / <code>inc/</code></th>
+        <th>Đầu vào</th>
+        <th>Đầu ra</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>1. MQTT Rx</strong></td>
+        <td><code>on_mqtt_message()</code></td>
+        <td>Topic <code>semg/v1/+/features</code> (QoS 0)</td>
+        <td>Chuỗi JSON thô <code>msg-&gt;payload</code></td>
+      </tr>
+      <tr>
+        <td><strong>2. Zero-Malloc Parse</strong></td>
+        <td><code>parse_feature_payload()</code></td>
+        <td>Chuỗi JSON <code>{"seq":1,"f":[...]}</code></td>
+        <td><code>int seq</code> + <code>raw_features[15]</code></td>
+      </tr>
+      <tr>
+        <td><strong>3. Z-Score Norm</strong></td>
+        <td><code>semg_normalize_features()</code></td>
+        <td><code>raw_features[15]</code>, <code>FEATURE_MEAN</code>, <code>FEATURE_STD</code></td>
+        <td><code>norm_features[15]</code></td>
+      </tr>
+      <tr>
+        <td><strong>4. MLP Inference</strong></td>
+        <td><code>ml_runtime_infer()</code></td>
+        <td><code>norm_features[15]</code></td>
+        <td>Xác suất 4 lớp <code>probs[4]</code></td>
+      </tr>
+      <tr>
+        <td><strong>5. Vote &amp; Publish</strong></td>
+        <td><code>post_process_vote()</code> + <code>mosquitto_publish()</code></td>
+        <td><code>probs[4]</code> (Ngưỡng <code>0.75</code>, cửa sổ <code>3</code>)</td>
+        <td>Topic <code>semg/v1/control/gesture</code> (QoS 1)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2. Bảng Mã Cử chỉ (Gesture Classes)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th><code>gesture_id</code></th>
+        <th>Nhãn (<code>label</code>)</th>
+        <th>Thư mục Dataset gốc</th>
+        <th>Hành vi trên Server</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>0</code></td>
+        <td><code>RESTING</code></td>
+        <td><code>1st_Gesture_Resting</code></td>
+        <td>Trạng thái nghỉ mặc định khi <code>conf &lt; 0.75</code></td>
+      </tr>
+      <tr>
+        <td><code>1</code></td>
+        <td><code>FIST</code></td>
+        <td><code>2nd_Gesture_Fist</code></td>
+        <td>Nắm chặt bàn tay</td>
+      </tr>
+      <tr>
+        <td><code>2</code></td>
+        <td><code>OPEN_HAND</code></td>
+        <td><code>4th_Gesture_Open_Hand</code></td>
+        <td>Xòe căng bàn tay</td>
+      </tr>
+      <tr>
+        <td><code>3</code></td>
+        <td><code>POINTING</code></td>
+        <td><code>7th_Gesture_Pointing</code></td>
+        <td>Chỉ ngón trỏ</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Định dạng Bản tin MQTT Chuẩn</h2>
+  <pre><code>// Chiều lên (ESP32 -> Server) | Topic: semg/v1/esp32_01/features | QoS: 0
+{"seq":42,"f":[0.0045,0.0062,0.72,57,92, 0.0047,0.0064,0.74,51,79, 0.0061,0.0081,0.94,61,91]}
+
+// Chiều xuống (Server -> End Device) | Topic: semg/v1/control/gesture | QoS: 1
+{"seq":42,"gesture_id":1,"label":"FIST","conf":0.992}</code></pre>
+</body>
+</html>

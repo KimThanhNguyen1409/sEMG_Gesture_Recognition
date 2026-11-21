@@ -1,0 +1,240 @@
+:root {
+  --bg: #fffff8;
+  --surface: #f7f6f0;
+  --border: #dcdad0;
+  --text: #111111;
+  --muted: #555555;
+  --accent: #1d4ed8;
+  --accent-light: #dbeafe;
+  --ok: #15803d;
+  --ok-bg: #dcfce7;
+  --warn: #b45309;
+  --warn-bg: #fef3c7;
+  --err: #b91c1c;
+  --err-bg: #fee2e2;
+  --code-bg: #1e293b;
+  --code-fg: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.65;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+h1, h2, h3 {
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 2.2rem;
+  margin-bottom: 0.75rem;
+}
+
+h1 {
+  font-size: 2rem;
+  border-bottom: 2px solid var(--text);
+  padding-bottom: 0.5rem;
+}
+
+h2 {
+  font-size: 1.4rem;
+}
+
+p, li {
+  font-size: 1.05rem;
+}
+
+code, pre {
+  font-family: Consolas, "JetBrains Mono", monospace;
+  font-size: 0.9rem;
+}
+
+code {
+  background: var(--surface);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+pre {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+.nav-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: system-ui, sans-serif;
+  font-size: 0.9rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.nav-bar a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.callout {
+  background: var(--surface);
+  border-left: 4px solid var(--accent);
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+  font-family: system-ui, sans-serif;
+}
+
+.stage-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.85rem;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.stage-card.active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  transform: translateY(-2px);
+}
+
+.stage-num {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.stage-title {
+  font-weight: 700;
+  margin: 0.25rem 0;
+  font-size: 0.95rem;
+}
+
+.stage-desc {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.sim-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin: 1.5rem 0;
+  font-family: system-ui, sans-serif;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1rem;
+}
+
+button.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button.btn.secondary {
+  background: #475569;
+}
+
+button.btn:hover {
+  opacity: 0.92;
+}
+
+.quiz-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin: 1.25rem 0;
+  font-family: system-ui, sans-serif;
+}
+
+.quiz-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.65rem 0.9rem;
+  margin: 0.45rem 0;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.quiz-option.correct {
+  background: var(--ok-bg);
+  border-color: var(--ok);
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.quiz-option.wrong {
+  background: var(--err-bg);
+  border-color: var(--err);
+  color: var(--err);
+}
+
+.quiz-feedback {
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-family: system-ui, sans-serif;
+  font-size: 0.92rem;
+}
+
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+}
+
+th {
+  background: var(--surface);
+}

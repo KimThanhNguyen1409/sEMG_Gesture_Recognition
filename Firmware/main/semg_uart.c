@@ -1,6 +1,6 @@
 /**
  * @file semg_uart.c
- * @brief Implementation of UART high-speed streaming driver.
+ * @brief Implementation of UART high-speed streaming driver for processed sEMG data.
  */
 
 #include "semg_uart.h"
@@ -13,18 +13,17 @@ static const char *TAG = "SEMG_UART";
 
 esp_err_t semg_uart_init(void)
 {
-    ESP_LOGI(TAG, "Initializing UART%d with baudrate %d...", SEMG_UART_PORT, SEMG_UART_BAUDRATE);
+    ESP_LOGI(TAG, "Initializing UART%d at %d baud...", SEMG_UART_PORT, SEMG_UART_BAUDRATE);
 
     uart_config_t uart_config = {
-        .baud_rate = SEMG_UART_BAUDRATE,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .baud_rate  = SEMG_UART_BAUDRATE,
+        .data_bits  = UART_DATA_8_BITS,
+        .parity     = UART_PARITY_DISABLE,
+        .stop_bits  = UART_STOP_BITS_1,
+        .flow_ctrl  = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_DEFAULT,
     };
 
-    /* Only install driver if not already installed */
     if (!uart_is_driver_installed(SEMG_UART_PORT)) {
         esp_err_t ret = uart_driver_install(SEMG_UART_PORT, 256, SEMG_UART_TX_BUF_SIZE, 0, NULL, 0);
         if (ret != ESP_OK) {
@@ -39,32 +38,32 @@ esp_err_t semg_uart_init(void)
         return ret;
     }
 
-    ESP_LOGI(TAG, "UART initialized successfully for sEMG CSV streaming");
+    ESP_LOGI(TAG, "UART initialized successfully");
     return ESP_OK;
 }
 
-void semg_uart_send_sample(const semg_sample_t *sample)
+void semg_uart_send_frame(const semg_processed_frame_t *frame)
 {
-    if (sample == NULL) {
+    if (frame == NULL) {
         return;
     }
 
-    /* Stack allocated buffer - Zero dynamic malloc */
+    /* Stack allocated buffer - Zero dynamic allocation */
     char buf[80];
     int len = 0;
 
-#if (ENABLE_DSP_FILTERING == 1)
-    /* Output filtered and DC-centered signal in mV */
-    len = snprintf(buf, sizeof(buf), "%.2f,%.2f,%.2f\r\n",
-                   sample->filtered[0],
-                   sample->filtered[1],
-                   sample->filtered[2]);
+#if (SEMG_UART_OUTPUT_RTI_UV == 1)
+    /* Output Physical Referred-To-Input potential in microvolts (uV) */
+    len = snprintf(buf, sizeof(buf), "%ld,%ld,%ld\r\n",
+                   (long)frame->emg_rti_uv[0],
+                   (long)frame->emg_rti_uv[1],
+                   (long)frame->emg_rti_uv[2]);
 #else
-    /* Output True Raw Calibrated millivolts */
+    /* Output Linearized & Calibrated millivolts at pin (mV) */
     len = snprintf(buf, sizeof(buf), "%d,%d,%d\r\n",
-                   (int)sample->voltage_mv[0],
-                   (int)sample->voltage_mv[1],
-                   (int)sample->voltage_mv[2]);
+                   (int)frame->voltage_mv[0],
+                   (int)frame->voltage_mv[1],
+                   (int)frame->voltage_mv[2]);
 #endif
 
     if (len > 0 && len < (int)sizeof(buf)) {
