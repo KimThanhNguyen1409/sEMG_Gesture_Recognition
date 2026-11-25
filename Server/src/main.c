@@ -453,6 +453,8 @@ static int post_process_vote(server_ctx_t* ctx, int* out_best_cls, float* out_co
     ctx->vote_idx = (ctx->vote_idx + 1) % win;
     if (ctx->vote_count < win) {
         ctx->vote_count++;
+    }
+    if (ctx->vote_count < win) {
         return -1;
     }
 

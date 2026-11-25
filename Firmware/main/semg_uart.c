@@ -1,6 +1,6 @@
 /**
  * @file semg_uart.c
- * @brief Implementation of UART high-speed streaming driver for processed sEMG data.
+ * @brief Implementation of UART high-speed (921600 baud) streaming driver for v3 sEMG data.
  */
 
 #include "semg_uart.h"
@@ -38,7 +38,7 @@ esp_err_t semg_uart_init(void)
         return ret;
     }
 
-    ESP_LOGI(TAG, "UART initialized successfully");
+    ESP_LOGI(TAG, "UART initialized successfully (v3 0.1 uV stream @ %d baud)", SEMG_UART_BAUDRATE);
     return ESP_OK;
 }
 
@@ -52,12 +52,12 @@ void semg_uart_send_frame(const semg_processed_frame_t *frame)
     char buf[80];
     int len = 0;
 
-#if (SEMG_UART_OUTPUT_RTI_UV == 1)
-    /* Output Physical Referred-To-Input potential in microvolts (uV) */
+#if (SEMG_UART_OUTPUT_RTI_TENTH_UV == 1)
+    /* Output v3 Physical Referred-To-Input potential in 0.1 uV integer units (10 = 1.0 uV) */
     len = snprintf(buf, sizeof(buf), "%ld,%ld,%ld\r\n",
-                   (long)frame->emg_rti_uv[0],
-                   (long)frame->emg_rti_uv[1],
-                   (long)frame->emg_rti_uv[2]);
+                   (long)frame->emg_rti_tenth_uv[0],
+                   (long)frame->emg_rti_tenth_uv[1],
+                   (long)frame->emg_rti_tenth_uv[2]);
 #else
     /* Output Linearized & Calibrated millivolts at pin (mV) */
     len = snprintf(buf, sizeof(buf), "%d,%d,%d\r\n",

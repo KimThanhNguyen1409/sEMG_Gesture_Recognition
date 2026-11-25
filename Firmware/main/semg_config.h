@@ -1,20 +1,37 @@
 /**
  * @file semg_config.h
- * @brief System configuration, pin mapping, DMA & DSP parameters for ESP32-S sEMG system.
+ * @brief System configuration, pin mapping, DMA & v3 DSP parameters for ESP32-S sEMG system.
  *
  * Target: ESP32-S (ESP32 Classic Xtensa LX6, chip D0WD)
- * AFE: 3-Channel Op-Amp (MCP6004) with Virtual Ground Vref = 1.65V, Gain = 113x
+ * AFE: 3-Channel Op-Amp (MCP6004) with Virtual Ground Vref = 1.65V, Gain = 113.6x
  */
 
 #pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifndef HOST_SIM
 #include "esp_adc/adc_continuous.h"
 #include "hal/adc_types.h"
 #include "hal/uart_types.h"
 #include "soc/gpio_num.h"
 #include "soc/soc_caps.h"
+#else
+/* Host simulation stubs for native GCC compilation */
+typedef int esp_err_t;
+#define ESP_OK                  (0)
+#define ESP_FAIL                (-1)
+#define GPIO_NUM_36             (36)
+#define GPIO_NUM_39             (39)
+#define GPIO_NUM_34             (34)
+#define ADC_CHANNEL_0           (0)
+#define ADC_CHANNEL_3           (3)
+#define ADC_CHANNEL_6           (6)
+#define ADC_ATTEN_DB_12         (3)
+#define SOC_ADC_DIGI_MAX_BITWIDTH (12)
+#define UART_NUM_0              (0)
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,6 +56,9 @@ extern "C" {
 #define SEMG_ADC_ATTEN                 (ADC_ATTEN_DB_12)
 #define SEMG_ADC_BITWIDTH              (SOC_ADC_DIGI_MAX_BITWIDTH) /* 12-bit */
 
+/* Demo/Mock gesture switch button (BOOT button on ESP32-S) */
+#define SEMG_DEMO_BTN_GPIO             (0)
+
 /* ========================================================================= */
 /*                   DMA & CONTINUOUS SAMPLING ENGINE                        */
 /* ========================================================================= */
@@ -47,13 +67,13 @@ extern "C" {
  * @brief Continuous ADC DMA Sampling Frequencies:
  * - Aggregate DMA Sample Frequency = 60,000 Hz (60 kHz)
  * - Per-channel sample rate = 60 kHz / 3 channels = 20,000 Hz (20 kHz)
- * - Oversampling Factor = 20
+ * - Oversampling Factor = 20 (first sinc null at 1000 Hz, preserves 20-450 Hz sEMG band)
  * - Decimated Output Rate = 20,000 Hz / 20 = 1,000 Hz (1 kHz = 1 ms per frame)
  *
  * Settling & Crosstalk Immunity:
  * Time between channel switching = 1 / 60 kHz = 16.67 us.
  * Hardware anti-kickback filter: R = 100 ohm, C = 1 nF -> tau = 100 ns.
- * 7*tau settling time = 700 ns (0.7 us) << 16.67 us (over 20x safety margin).
+ * 7*tau settling time = 700 ns (0.7 us) << 16.67 us (> 20x safety margin).
  */
 #define SEMG_DMA_SAMPLE_FREQ_HZ        (60000)
 #define SEMG_OVERSAMPLE_RATIO          (20)
@@ -64,42 +84,44 @@ extern "C" {
  * Each conversion result is 2 bytes (SOC_ADC_DIGI_RESULT_BYTES = 2).
  * 1 full 3-channel scan = 3 channels * 2 bytes = 6 bytes.
  * For 20 oversamples: 20 * 6 bytes = 120 bytes per frame (divisible by 4 bytes per conv).
- * 120 bytes at 60 kHz aggregate = exactly 1.0 ms duration.
  */
 #define SEMG_DMA_FRAME_SIZE            (120)
 #define SEMG_DMA_MAX_STORE_BUF_SIZE    (1024)
 
 /* ========================================================================= */
-/*                     PREPROCESSING & DSP PARAMETERS                        */
+/*                     PREPROCESSING & v3 DSP PARAMETERS                     */
 /* ========================================================================= */
 
 /* Validation Thresholds */
 #define SEMG_RAIL_MIN_RAW              (15)     /* Rail saturation low (< ~12 mV) */
 #define SEMG_RAIL_MAX_RAW              (4080)   /* Rail saturation high (> ~3280 mV) */
-#define SEMG_STUCK_AT_DIFF_THRESH      (2)      /* Max delta to consider sample stuck */
-#define SEMG_STUCK_AT_MAX_SAMPLES      (100)    /* 100 ms of stuck samples flags error */
+#define SEMG_STUCK_WINDOW_LEN          (100)    /* 100 ms sliding window @ 1 kHz */
+#define SEMG_STUCK_MAX_RANGE           (2)      /* Range (max - min) <= 2 ADC codes */
+#define SEMG_STUCK_MIN_SAME_COUNT      (90)     /* >= 90/100 samples identical code -> stuck */
 
-/* Boxcar FIR Moving Average Filter (Power of 2 for fast integer shift) */
-#define SEMG_BOXCAR_TAPS               (8)      /* 8-tap Boxcar FIR */
-#define SEMG_BOXCAR_SHIFT              (3)      /* 2^3 = 8 (division replaced by >> 3) */
+/* Optional Integer 50 Hz Biquad Notch Filter (0 = off when Bridge filters, 1 = on) */
+#ifndef SEMG_ENABLE_NOTCH50
+#define SEMG_ENABLE_NOTCH50            (0)
+#endif
 
-/* Hardware AFE Parameters for Physical Unit Conversion */
-#define SEMG_AFE_GAIN                  (113)    /* Hardware gain from KiCad MCP6004 AFE */
-#define SEMG_VREF_MV                   (1650)   /* Virtual Ground Vref = 1.65 V */
+/* Hardware AFE Parameters for High-Resolution Fixed-Point Scaling */
+#define SEMG_AFE_GAIN_X10              (1136)   /* 113.6x nominal gain from MCP6004/LTspice AFE */
+#define SEMG_VREF_MV_X100              (165000) /* Virtual Ground Vref = 1650.00 mV (in 0.01 mV) */
 
 /* ========================================================================= */
 /*                      UART OUTPUT CONFIGURATION                            */
 /* ========================================================================= */
 
 #define SEMG_UART_PORT                 (UART_NUM_0)
-#define SEMG_UART_BAUDRATE             (115200)
-#define SEMG_UART_TX_BUF_SIZE          (1024)
+#define SEMG_UART_BAUDRATE             (921600) /* 921.6 kbps (~22% load @ 1 kHz v3 CSV) */
+#define SEMG_UART_TX_BUF_SIZE          (2048)
 
-/* Output format selector: 
- * 1 = Output Microvolts RTI (Referred to Input in uV)
- * 0 = Output Calibrated Millivolts (mV at ADC pin)
+/**
+ * @brief Output format selector:
+ * 1 = Output v3 Referred-To-Input potential in 0.1 uV units (1 unit = 0.1 uV = 1e-7 V)
+ * 0 = Output Linearized & Calibrated millivolts at ADC pin (mV)
  */
-#define SEMG_UART_OUTPUT_RTI_UV        (1)
+#define SEMG_UART_OUTPUT_RTI_TENTH_UV  (1)
 
 /* ========================================================================= */
 /*                      FREERTOS & MEMORY PARAMS                             */
@@ -130,14 +152,14 @@ typedef enum {
 } semg_health_flag_t;
 
 /**
- * @brief Processed 1 kHz sEMG Multi-Channel Frame
+ * @brief Processed 1 kHz sEMG Multi-Channel Frame (v3)
  */
 typedef struct {
     uint32_t timestamp_ms;
-    int16_t  raw_decimated[SEMG_NUM_CHANNELS];   /* Averaged 12-bit ADC raw (0..4095) */
-    int16_t  voltage_mv[SEMG_NUM_CHANNELS];      /* Calibrated & linearized ADC mV */
-    int32_t  emg_rti_uv[SEMG_NUM_CHANNELS];      /* Physical Referred-To-Input in uV */
-    uint8_t  health_flags[SEMG_NUM_CHANNELS];    /* Bitmask of semg_health_flag_t */
+    int16_t  raw_decimated[SEMG_NUM_CHANNELS];      /* Rounded 12-bit ADC raw (0..4095) */
+    int16_t  voltage_mv[SEMG_NUM_CHANNELS];         /* Calibrated & linearized ADC mV */
+    int32_t  emg_rti_tenth_uv[SEMG_NUM_CHANNELS];   /* Physical RTI in 0.1 uV (10 = 1.0 uV) */
+    uint8_t  health_flags[SEMG_NUM_CHANNELS];       /* Bitmask of semg_health_flag_t */
 } semg_processed_frame_t;
 
 #ifdef __cplusplus

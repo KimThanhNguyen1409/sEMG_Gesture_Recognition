@@ -190,8 +190,9 @@ void app_main(void)
     /* 5. Start DMA Sampling Hardware */
     ESP_ERROR_CHECK(semg_adc_dma_start());
 
-    ESP_LOGI(TAG, "Continuous DMA Running. Output: %s",
-             SEMG_UART_OUTPUT_RTI_UV ? "RTI uV" : "Calibrated mV");
+    ESP_LOGI(TAG, "Continuous DMA Running. Output: %s @ %d baud",
+             SEMG_UART_OUTPUT_RTI_TENTH_UV ? "v3 RTI (0.1 uV)" : "Calibrated mV",
+             SEMG_UART_BAUDRATE);
 
     /* 6. Background Monitor Loop */
     uint32_t last_count = 0;

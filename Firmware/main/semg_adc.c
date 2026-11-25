@@ -96,19 +96,19 @@ esp_err_t semg_adc_dma_init(TaskHandle_t worker_task_to_notify)
 
     adc_digi_pattern_config_t adc_pattern[SOC_ADC_PATT_LEN_MAX] = {0};
 
-    /* Channel 1: GPIO 34 (ADC1_CHANNEL_6) */
+    /* Channel 1: GPIO 36 (SENSOR_VP / ADC1_CHANNEL_0) */
     adc_pattern[0].atten     = SEMG_ADC_ATTEN;
     adc_pattern[0].channel   = SEMG_CH1_ADC_CHANNEL & 0x7;
     adc_pattern[0].unit      = ADC_UNIT_1;
     adc_pattern[0].bit_width = SEMG_ADC_BITWIDTH;
 
-    /* Channel 2: GPIO 35 (ADC1_CHANNEL_7) */
+    /* Channel 2: GPIO 39 (SENSOR_VN / ADC1_CHANNEL_3) */
     adc_pattern[1].atten     = SEMG_ADC_ATTEN;
     adc_pattern[1].channel   = SEMG_CH2_ADC_CHANNEL & 0x7;
     adc_pattern[1].unit      = ADC_UNIT_1;
     adc_pattern[1].bit_width = SEMG_ADC_BITWIDTH;
 
-    /* Channel 3: GPIO 32 (ADC1_CHANNEL_4) */
+    /* Channel 3: GPIO 34 (IO34 / ADC1_CHANNEL_6) */
     adc_pattern[2].atten     = SEMG_ADC_ATTEN;
     adc_pattern[2].channel   = SEMG_CH3_ADC_CHANNEL & 0x7;
     adc_pattern[2].unit      = ADC_UNIT_1;

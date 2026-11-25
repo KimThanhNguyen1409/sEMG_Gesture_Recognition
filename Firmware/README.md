@@ -10,9 +10,9 @@ Tín hiệu đầu ra từ mạch Analog Front-End (Op-Amp MCP6004, nguồn 3.3V
 
 | Kênh sEMG | Nhóm cơ tương ứng | Chân GPIO ESP32-S | Ngoại vi ADC1 | Dải điện áp ngõ vào |
 | :---: | :--- | :---: | :---: | :---: |
-| **Kênh 1** | *Flexor Carpi Radialis (FCR)* | **GPIO 34** | `ADC1_CHANNEL_6` | $0\text{ V} \to 3.3\text{ V}$ (Atten: 12dB) |
-| **Kênh 2** | *Extensor Digitorum Communis (EDC)* | **GPIO 35** | `ADC1_CHANNEL_7` | $0\text{ V} \to 3.3\text{ V}$ (Atten: 12dB) |
-| **Kênh 3** | *Brachioradialis* | **GPIO 32** | `ADC1_CHANNEL_4` | $0\text{ V} \to 3.3\text{ V}$ (Atten: 12dB) |
+| **Kênh 1** | *Flexor Carpi Radialis (FCR)* | **GPIO 36 (`SENSOR_VP`, Pad 4)** | `ADC1_CHANNEL_0` | $0\text{ V} \to 3.3\text{ V}$ (Atten: 12dB) |
+| **Kênh 2** | *Extensor Digitorum Communis (EDC)* | **GPIO 39 (`SENSOR_VN`, Pad 5)** | `ADC1_CHANNEL_3` | $0\text{ V} \to 3.3\text{ V}$ (Atten: 12dB) |
+| **Kênh 3** | *Brachioradialis* | **GPIO 34 (`IO34`, Pad 6)** | `ADC1_CHANNEL_6` | $0\text{ V} \to 3.3\text{ V}$ (Atten: 12dB) |
 | **GND** | Mass tham chiếu mạch AFE | **GND** | Mass chung | $0\text{ V}$ |
 
 ---
