@@ -116,6 +116,42 @@ def iter_samples(source: str, baud: int, fw_format: str, scale: float, realtime:
                     if realtime:
                         time.sleep(0.001)
 
+    elif source.startswith("test-demo:"):
+        import glob
+        import os
+        from sklearn.model_selection import train_test_split
+
+        base_dir = source.split(":", 1)[1]
+        gesture_map = [
+            ("1st_Gesture_Resting", 0, "RESTING"),
+            ("2nd_Gesture_Fist", 1, "FIST"),
+            ("4th_Gesture_Open_Hand", 2, "OPEN_HAND"),
+            ("7th_Gesture_Pointing", 3, "POINTING"),
+        ]
+        trials = []
+        for folder, cls_idx, label in gesture_map:
+            for fpath in sorted(glob.glob(os.path.join(base_dir, folder, "*.csv"))):
+                trials.append({"file": fpath, "name": os.path.basename(fpath), "class": cls_idx, "label": label})
+        _, temp_trials = train_test_split(trials, test_size=0.3, random_state=42, stratify=[t["class"] for t in trials])
+        _, test_trials = train_test_split(temp_trials, test_size=0.5, random_state=42, stratify=[t["class"] for t in temp_trials])
+
+        # Pick 1 unseen test trial per gesture class and stream sequentially
+        demo_seq = []
+        for _, cls_idx, _ in gesture_map:
+            demo_seq.append(next(t for t in test_trials if t["class"] == cls_idx))
+
+        print(f"[BRIDGE] Blind Test-Demo sequence ({len(demo_seq)} unseen test trials):")
+        for item in demo_seq:
+            print(f"  >>> Streaming unseen test trial: {item['label']} ({item['name']})")
+            with open(item["file"], "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                next(reader, None)
+                for row in reader:
+                    if len(row) >= 4:
+                        yield [float(row[1]), float(row[2]), float(row[3])]
+                        if realtime:
+                            time.sleep(0.001)
+
     elif source.startswith("file:"):
         path = source.split(":", 1)[1]
         print(f"[BRIDGE] Reading captured CSV: {path}")

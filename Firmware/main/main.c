@@ -135,9 +135,9 @@ static void semg_uart_task(void *pvParameters)
 void app_main(void)
 {
     ESP_LOGI(TAG, "==========================================================");
-    ESP_LOGI(TAG, "  ESP32-S 3-CH sEMG DMA PIPELINE FIRMWARE                 ");
-    ESP_LOGI(TAG, "  DMA Rate: 60 kHz | Decimated: 1000 Hz | Zero-Float ISR  ");
-    ESP_LOGI(TAG, "  Boxcar FIR + Linearization LUT + Health Diagnostics     ");
+    ESP_LOGI(TAG, "  ESP32-S 3-CH sEMG DMA PIPELINE FIRMWARE (v3)            ");
+    ESP_LOGI(TAG, "  Build Mode: %s", SEMG_MODE_STR);
+    ESP_LOGI(TAG, "  DMA Rate: 60 kHz | Decimated: 1000 Hz | UART: %d baud", SEMG_UART_BAUDRATE);
     ESP_LOGI(TAG, "==========================================================");
 
     /* 1. Create Static FreeRTOS Queue */

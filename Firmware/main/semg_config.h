@@ -38,6 +38,30 @@ extern "C" {
 #endif
 
 /* ========================================================================= */
+/*                       BUILD MODE: RELEASE vs TESTING                      */
+/* ========================================================================= */
+
+/**
+ * @brief Select firmware operation mode at build time:
+ * - SEMG_MODE_RELEASE: Real hardware ADC1 DMA (Pads 4, 5, 6 -> GPIO 36, 39, 34).
+ * - SEMG_MODE_TESTING: HAL Mock ADC replaying unseen Test-split sEMG waveforms
+ *                      from Flash (press BOOT GPIO 0 to cycle 4 gestures).
+ *
+ * Select via CMake / build.bat:
+ *   build.bat release   -> -DFIRMWARE_MODE=RELEASE (default)
+ *   build.bat testing   -> -DFIRMWARE_MODE=TESTING
+ */
+#if !defined(SEMG_MODE_TESTING) && !defined(SEMG_MODE_RELEASE)
+#define SEMG_MODE_RELEASE              (1)
+#endif
+
+#ifdef SEMG_MODE_TESTING
+#define SEMG_MODE_STR                  "TESTING (Mock Unseen Test-Split)"
+#else
+#define SEMG_MODE_STR                  "RELEASE (Real Hardware ADC1 DMA)"
+#endif
+
+/* ========================================================================= */
 /*                              HARDWARE PINS                                */
 /* ========================================================================= */
 

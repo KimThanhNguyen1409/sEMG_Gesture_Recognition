@@ -1,8 +1,23 @@
-# Support optional mock ADC mode: idf.py -DSEMG_MOCK_ADC=1 build
-if(SEMG_MOCK_ADC)
+# ============================================================================
+# Firmware Build Mode Selection: RELEASE (default) vs TESTING (Mock ADC)
+# Usage:
+#   idf.py -DFIRMWARE_MODE=RELEASE build   (Real PCB ADC1 DMA)
+#   idf.py -DFIRMWARE_MODE=TESTING build   (Unseen Test-Split Mock + BOOT btn)
+# ============================================================================
+if(NOT DEFINED FIRMWARE_MODE)
+    set(FIRMWARE_MODE "RELEASE")
+endif()
+
+string(TOUPPER "${FIRMWARE_MODE}" FIRMWARE_MODE_UPPER)
+
+if(FIRMWARE_MODE_UPPER STREQUAL "TESTING")
+    message(STATUS "[SEMG] Build Mode: TESTING (using semg_adc_mock.c)")
     set(ADC_SRC "semg_adc_mock.c")
+    set(MODE_DEF "SEMG_MODE_TESTING=1")
 else()
+    message(STATUS "[SEMG] Build Mode: RELEASE (using real hardware semg_adc.c)")
     set(ADC_SRC "semg_adc.c")
+    set(MODE_DEF "SEMG_MODE_RELEASE=1")
 endif()
 
 idf_component_register(
@@ -21,3 +36,5 @@ idf_component_register(
         driver 
         freertos
 )
+
+target_compile_definitions(${COMPONENT_LIB} PUBLIC ${MODE_DEF})
