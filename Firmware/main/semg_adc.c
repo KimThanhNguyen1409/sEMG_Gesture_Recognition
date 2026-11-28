@@ -152,6 +152,10 @@ esp_err_t semg_adc_dma_init(TaskHandle_t worker_task_to_notify)
     }
 #endif
 
+    ESP_LOGI(TAG, "ADC1 DMA Pins: CH1=GPIO%d(CH%d), CH2=GPIO%d(CH%d), CH3=GPIO%d(CH%d)",
+             SEMG_CH1_GPIO, SEMG_CH1_ADC_CHANNEL,
+             SEMG_CH2_GPIO, SEMG_CH2_ADC_CHANNEL,
+             SEMG_CH3_GPIO, SEMG_CH3_ADC_CHANNEL);
     ESP_LOGI(TAG, "Continuous ADC DMA initialized. Channel Switching Settling Time: 16.67 us (> 20x tau)");
     return ESP_OK;
 }

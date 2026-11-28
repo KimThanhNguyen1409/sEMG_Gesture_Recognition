@@ -2,12 +2,7 @@
  * @file semg_pipeline.c
  * @brief Implementation of v3 zero-floating-point preprocessing pipeline for sEMG signals.
  *
- * Key improvements over v1:
- * - Removed 8-tap Boxcar FIR @ 1 kHz (eliminated 125/250 Hz nulls & passband droop).
- * - Preserved 20x oversampling fractional bits using int64_t math and 0.1 uV RTI output.
- * - Fixed LUT >= 3300 mV boundary clamping to [0, 330000] (0.01 mV units).
- * - Fixed STUCK_AT false positives on RESTING via range <= 2 AND mode >= 90/100 check.
- * - Added optional Q14 integer 50 Hz Biquad Notch (SEMG_ENABLE_NOTCH50).
+ * Supports RELEASE, TESTING, and SIMULATE (5V prototype + voltage divider + Auto-Tare DC).
  */
 
 #include "semg_pipeline.h"
@@ -22,10 +17,6 @@ typedef struct {
     int32_t delta_mv_x100;  /* Compensation offset to add in 0.01 mV */
 } semg_cali_knee_t;
 
-/**
- * @brief Non-linearity compensation points for ESP32-D0WD SAR ADC (12 dB Attenuation),
- * scaled by 100 (0.01 mV units) to preserve sub-LSB oversampling resolution.
- */
 static const semg_cali_knee_t KNEE_TABLE[] = {
     {      0,   7000 },
     {  10000,   4500 },
@@ -75,21 +66,31 @@ int32_t semg_linearize_mv_x100(int32_t raw_mv_x100)
     return clamp_mv_x100(raw_mv_x100);
 }
 
-int32_t semg_scale_to_rti_tenth_uv(int32_t adc_mv_x100)
+static int32_t scale_diff_to_rti_tenth_uv(int64_t diff_mv_x100)
 {
-    /*
-     * 1 unit of adc_mv_x100 = 0.01 mV = 10 uV = 100 * (0.1 uV).
-     * Gain = SEMG_AFE_GAIN_X10 / 10 (e.g. 1136 / 10 = 113.6).
-     * V_RTI (0.1 uV) = (diff_mv_x100 * 100 * 10) / SEMG_AFE_GAIN_X10
-     */
-    int64_t diff = (int64_t)adc_mv_x100 - SEMG_VREF_MV_X100;
-    int64_t num = diff * 1000LL;
-    /* Round-to-nearest integer division */
+#if (SEMG_USE_DIVIDER_AUTOTARE == 1)
+    /* Compensate 5V->3.3V resistor divider: V_opamp = V_pin * (R_TOP + R_BOT) / R_BOT */
+    const int64_t r_sum = SEMG_SIM_R_TOP_OHM + SEMG_SIM_R_BOT_OHM;
+    const int64_t denom = SEMG_SIM_R_BOT_OHM * (int64_t)SEMG_AFE_GAIN_X10;
+    int64_t num = diff_mv_x100 * r_sum * 1000LL;
+    if (num >= 0) {
+        return (int32_t)((num + (denom / 2)) / denom);
+    } else {
+        return (int32_t)((num - (denom / 2)) / denom);
+    }
+#else
+    int64_t num = diff_mv_x100 * 1000LL;
     if (num >= 0) {
         return (int32_t)((num + (SEMG_AFE_GAIN_X10 / 2)) / SEMG_AFE_GAIN_X10);
     } else {
         return (int32_t)((num - (SEMG_AFE_GAIN_X10 / 2)) / SEMG_AFE_GAIN_X10);
     }
+#endif
+}
+
+int32_t semg_scale_to_rti_tenth_uv(int32_t adc_mv_x100)
+{
+    return scale_diff_to_rti_tenth_uv((int64_t)adc_mv_x100 - SEMG_VREF_MV_X100);
 }
 
 /* ========================================================================= */
@@ -97,7 +98,6 @@ int32_t semg_scale_to_rti_tenth_uv(int32_t adc_mv_x100)
 /* ========================================================================= */
 
 #if (SEMG_ENABLE_NOTCH50 == 1)
-/* Q14 coefficients for fs = 1000 Hz, f0 = 50 Hz, Q = 5.0 (SCALE = 16384) */
 #define NOTCH_Q14_SHIFT  (14)
 #define NOTCH_B0_Q14     (15893LL)
 #define NOTCH_B1_Q14     (-30230LL)
@@ -126,14 +126,12 @@ static uint8_t semg_validate_channel(semg_validator_t *v, int16_t raw_code)
 {
     uint8_t flags = SEMG_HEALTH_OK;
 
-    /* 1. Rail Saturation Check */
     if (raw_code <= SEMG_RAIL_MIN_RAW) {
         flags |= SEMG_HEALTH_RAIL_LOW;
     } else if (raw_code >= SEMG_RAIL_MAX_RAW) {
         flags |= SEMG_HEALTH_RAIL_HIGH;
     }
 
-    /* 2. Push sample into 100-sample circular window */
     v->window[v->idx] = raw_code;
     v->idx++;
     if (v->idx >= SEMG_STUCK_WINDOW_LEN) {
@@ -143,7 +141,6 @@ static uint8_t semg_validate_channel(semg_validator_t *v, int16_t raw_code)
         v->count++;
     }
 
-    /* 3. Stuck-At Check: range <= 2 AND >= 90/100 samples share the exact same code */
     if (v->count >= SEMG_STUCK_WINDOW_LEN) {
         int16_t min_v = v->window[0];
         int16_t max_v = v->window[0];
@@ -154,7 +151,6 @@ static uint8_t semg_validate_channel(semg_validator_t *v, int16_t raw_code)
         }
 
         if ((max_v - min_v) <= SEMG_STUCK_MAX_RANGE) {
-            /* At most 3 distinct codes exist: min_v, min_v + 1, min_v + 2 */
             uint8_t counts[3] = {0, 0, 0};
             for (int i = 0; i < SEMG_STUCK_WINDOW_LEN; i++) {
                 int16_t offset = v->window[i] - min_v;
@@ -188,6 +184,21 @@ void semg_pipeline_init(semg_pipeline_state_t *pipe, adc_cali_handle_t cali_hand
 
     memset(pipe, 0, sizeof(semg_pipeline_state_t));
     pipe->cali_handle = cali_handle;
+
+    for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
+        pipe->vref_mv_x100[ch] = SEMG_VREF_MV_X100;
+        pipe->rolling_dc_x100[ch] = SEMG_VREF_MV_X100;
+    }
+}
+
+void semg_pipeline_tare_now(semg_pipeline_state_t *pipe)
+{
+    if (pipe == NULL || !pipe->dc_seeded) {
+        return;
+    }
+    for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
+        pipe->vref_mv_x100[ch] = pipe->rolling_dc_x100[ch];
+    }
 }
 
 void semg_pipeline_process_frame(semg_pipeline_state_t *pipe,
@@ -211,20 +222,14 @@ void semg_pipeline_process_frame(semg_pipeline_state_t *pipe,
             continue;
         }
 
-        /* ------------------------------------------------------------- */
-        /* STAGE 1: Rounded raw code for diagnostics & validation        */
-        /* ------------------------------------------------------------- */
+        /* STAGE 1: Rounded raw code for diagnostics & validation */
         int16_t avg_raw = (int16_t)((accum + (int32_t)(cnt / 2)) / (int32_t)cnt);
         out_frame->raw_decimated[ch] = avg_raw;
 
-        /* ------------------------------------------------------------- */
-        /* STAGE 2: Range & Stuck-At Validation                          */
-        /* ------------------------------------------------------------- */
+        /* STAGE 2: Range & Stuck-At Validation */
         out_frame->health_flags[ch] = semg_validate_channel(&pipe->validators[ch], avg_raw);
 
-        /* ------------------------------------------------------------- */
-        /* STAGE 3: Full-Precision Calibration (in 0.01 mV units)        */
-        /* ------------------------------------------------------------- */
+        /* STAGE 3: Full-Precision Calibration (in 0.01 mV units) */
         int32_t calibrated_mv_x100 = 0;
 
 #ifndef HOST_SIM
@@ -237,7 +242,6 @@ void semg_pipeline_process_frame(semg_pipeline_state_t *pipe,
 
             if (adc_cali_raw_to_voltage(pipe->cali_handle, q, &mv0) == ESP_OK &&
                 adc_cali_raw_to_voltage(pipe->cali_handle, q_next, &mv1) == ESP_OK) {
-                /* Sub-LSB linear interpolation preserves 20x oversampling bits */
                 int64_t interp = ((int64_t)mv0 * 100LL) +
                                  (((int64_t)r * (int64_t)(mv1 - mv0) * 100LL) / (int64_t)cnt);
                 calibrated_mv_x100 = clamp_mv_x100(interp);
@@ -248,27 +252,43 @@ void semg_pipeline_process_frame(semg_pipeline_state_t *pipe,
             calibrated_mv_x100 = clamp_mv_x100(((int64_t)accum * 330000LL) / ((int64_t)cnt * 4095LL));
         }
 #else
-        /* Host simulation: exact int64_t ratio preserving full oversampling precision */
         calibrated_mv_x100 = clamp_mv_x100(((int64_t)accum * 330000LL) / ((int64_t)cnt * 4095LL));
 #endif
 
-        /* ------------------------------------------------------------- */
-        /* STAGE 4: Piecewise Linearization Curve Compensation           */
-        /* ------------------------------------------------------------- */
+        /* STAGE 4: Piecewise Linearization Curve Compensation */
         int32_t linear_mv_x100 = semg_linearize_mv_x100(calibrated_mv_x100);
         out_frame->voltage_mv[ch] = (int16_t)((linear_mv_x100 + 50) / 100);
 
-        /* ------------------------------------------------------------- */
-        /* STAGE 5: High-Resolution Scaling to Physical Units (0.1 uV)   */
-        /* ------------------------------------------------------------- */
-        int32_t rti_tenth_uv = semg_scale_to_rti_tenth_uv(linear_mv_x100);
+        /* Track slow rolling DC baseline (EMA alpha = 1/256, integer shift >> 8) */
+        if (!pipe->dc_seeded) {
+            pipe->rolling_dc_x100[ch] = linear_mv_x100;
+        } else {
+            pipe->rolling_dc_x100[ch] += (linear_mv_x100 - pipe->rolling_dc_x100[ch]) >> 8;
+        }
 
-        /* ------------------------------------------------------------- */
-        /* STAGE 6: Optional Q14 Integer 50 Hz Notch                     */
-        /* ------------------------------------------------------------- */
+#if (SEMG_USE_DIVIDER_AUTOTARE == 1)
+        /* Auto-Tare DC over first 500 ms after startup */
+        if (pipe->tare_count < SEMG_SIM_STARTUP_TARE_SAMPLES) {
+            pipe->tare_accum_x100[ch] += linear_mv_x100;
+            if (pipe->tare_count == (SEMG_SIM_STARTUP_TARE_SAMPLES - 1u)) {
+                pipe->vref_mv_x100[ch] = (int32_t)(pipe->tare_accum_x100[ch] / (int64_t)SEMG_SIM_STARTUP_TARE_SAMPLES);
+            }
+        }
+#endif
+
+        /* STAGE 5: High-Resolution Scaling to Physical Units (0.1 uV) */
+        int64_t diff_mv_x100 = (int64_t)linear_mv_x100 - (int64_t)pipe->vref_mv_x100[ch];
+        int32_t rti_tenth_uv = scale_diff_to_rti_tenth_uv(diff_mv_x100);
+
+        /* STAGE 6: Optional Q14 Integer 50 Hz Notch */
 #if (SEMG_ENABLE_NOTCH50 == 1)
         rti_tenth_uv = semg_notch50_process(&pipe->notch50[ch], rti_tenth_uv);
 #endif
         out_frame->emg_rti_tenth_uv[ch] = rti_tenth_uv;
+    }
+
+    pipe->dc_seeded = true;
+    if (pipe->tare_count < SEMG_SIM_STARTUP_TARE_SAMPLES) {
+        pipe->tare_count++;
     }
 }

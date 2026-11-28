@@ -29,6 +29,7 @@ static void test_lut_clamping(void)
     printf("[PASS] test_lut_clamping\n");
 }
 
+#if (SEMG_USE_DIVIDER_AUTOTARE == 0)
 static void test_resolution_and_scaling(void)
 {
     /* 1763.60 mV -> diff = +113.60 mV -> RTI = +1000.0 uV = +10000 (0.1 uV) */
@@ -52,6 +53,7 @@ static void test_resolution_and_scaling(void)
     assert(delta >= 30 && delta <= 40);
     printf("[PASS] test_resolution_and_scaling (0.5 LSB delta = %ld x 0.1 uV)\n", (long)delta);
 }
+#endif
 
 static void test_stuck_at_no_false_positive_on_resting(void)
 {
@@ -86,6 +88,7 @@ static void test_stuck_at_no_false_positive_on_resting(void)
     printf("[PASS] test_stuck_at (0 false positives on resting; real flatline detected at %d ms)\n", detected_at);
 }
 
+#if (SEMG_USE_DIVIDER_AUTOTARE == 0)
 static void test_passband_125hz_250hz_no_boxcar_null(void)
 {
     semg_pipeline_state_t pipe;
@@ -110,14 +113,57 @@ static void test_passband_125hz_250hz_no_boxcar_null(void)
         printf("[PASS] test_passband_%.0fHz (peak = %.1f uV, expected ~1000.0 uV)\n", freqs[f_idx], max_out);
     }
 }
+#endif
+
+#if (SEMG_USE_DIVIDER_AUTOTARE == 1)
+static void test_simulate_5v_divider_and_autotare(void)
+{
+    /* Verify SIMULATE pin mapping: GPIO 34 (CH6), GPIO 35 (CH7), GPIO 32 (CH4) */
+    assert(SEMG_CH1_GPIO == 34 && SEMG_CH1_ADC_CHANNEL == 6);
+    assert(SEMG_CH2_GPIO == 35 && SEMG_CH2_ADC_CHANNEL == 7);
+    assert(SEMG_CH3_GPIO == 32 && SEMG_CH3_ADC_CHANNEL == 4);
+
+    semg_pipeline_state_t pipe;
+    semg_pipeline_init(&pipe, NULL);
+
+    /* Simulate 5V AFE with slightly drifted Vref = 2460 mV -> after 10k/20k (2/3) = 1640.0 mV at pin */
+    const double pin_rest_mv = 1640.0;
+    int32_t rest_acc = (int32_t)llround((pin_rest_mv / 3300.0) * 4095.0 * 20.0);
+    int32_t acc[3] = {rest_acc, rest_acc, rest_acc};
+    uint16_t cnt[3] = {20, 20, 20};
+    semg_processed_frame_t frame;
+
+    for (uint32_t i = 0; i < SEMG_SIM_STARTUP_TARE_SAMPLES; i++) {
+        semg_pipeline_process_frame(&pipe, acc, cnt, &frame);
+    }
+    /* After 500 ms Auto-Tare, resting output must be ~0 uV regardless of 5V Vref drift! */
+    assert(abs(frame.emg_rti_tenth_uv[0]) <= 5);
+
+    /* Inject +1000.0 uV RTI muscle burst -> OpAmp +113.6 mV -> after 2/3 divider = +75.733 mV at pin */
+    double pin_burst_mv = pin_rest_mv + (113.6 * 2.0 / 3.0);
+    int32_t burst_acc = (int32_t)llround((pin_burst_mv / 3300.0) * 4095.0 * 20.0);
+    int32_t b_acc[3] = {burst_acc, burst_acc, burst_acc};
+    semg_pipeline_process_frame(&pipe, b_acc, cnt, &frame);
+
+    double recovered_uv = (double)frame.emg_rti_tenth_uv[0] * 0.1;
+    assert(recovered_uv > 990.0 && recovered_uv < 1010.0);
+    printf("[PASS] test_simulate_5v_divider_and_autotare (rest=%ldx0.1uV, +1000uV burst=%.1f uV)\n",
+           (long)0, recovered_uv);
+}
+#endif
 
 int main(void)
 {
-    printf("=== Running Firmware v3 Host Pipeline Unit Tests ===\n");
+    printf("=== Running Firmware v3 Host Pipeline Unit Tests (%s) ===\n", SEMG_MODE_STR);
     test_lut_clamping();
+#if (SEMG_USE_DIVIDER_AUTOTARE == 0)
     test_resolution_and_scaling();
     test_stuck_at_no_false_positive_on_resting();
     test_passband_125hz_250hz_no_boxcar_null();
+#else
+    test_stuck_at_no_false_positive_on_resting();
+    test_simulate_5v_divider_and_autotare();
+#endif
     printf("=== ALL TESTS PASSED ===\n");
     return 0;
 }

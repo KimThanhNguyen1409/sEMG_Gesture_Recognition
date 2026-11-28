@@ -25,12 +25,15 @@ esp_err_t semg_uart_init(void)
     };
 
     if (!uart_is_driver_installed(SEMG_UART_PORT)) {
-        esp_err_t ret = uart_driver_install(SEMG_UART_PORT, 256, SEMG_UART_TX_BUF_SIZE, 0, NULL, 0);
+        esp_err_t ret = uart_driver_install(SEMG_UART_PORT, 512, SEMG_UART_TX_BUF_SIZE, 0, NULL, 0);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "uart_driver_install failed (%s)", esp_err_to_name(ret));
             return ret;
         }
     }
+
+    /* Drain any pending console log bytes before reconfiguring baudrate */
+    uart_wait_tx_idle_polling(SEMG_UART_PORT);
 
     esp_err_t ret = uart_param_config(SEMG_UART_PORT, &uart_config);
     if (ret != ESP_OK) {
@@ -38,7 +41,7 @@ esp_err_t semg_uart_init(void)
         return ret;
     }
 
-    ESP_LOGI(TAG, "UART initialized successfully (v3 0.1 uV stream @ %d baud)", SEMG_UART_BAUDRATE);
+    ESP_LOGI(TAG, "UART initialized successfully @ %d baud", SEMG_UART_BAUDRATE);
     return ESP_OK;
 }
 
@@ -52,19 +55,19 @@ void semg_uart_send_frame(const semg_processed_frame_t *frame)
     char buf[80];
     int len = 0;
 
-#if (SEMG_UART_OUTPUT_RTI_TENTH_UV == 1)
-    /* Output v3 Physical Referred-To-Input potential in 0.1 uV integer units (10 = 1.0 uV) */
-    len = snprintf(buf, sizeof(buf), "%ld,%ld,%ld\r\n",
-                   (long)frame->emg_rti_tenth_uv[0],
-                   (long)frame->emg_rti_tenth_uv[1],
-                   (long)frame->emg_rti_tenth_uv[2]);
-#else
-    /* Output Linearized & Calibrated millivolts at pin (mV) */
-    len = snprintf(buf, sizeof(buf), "%d,%d,%d\r\n",
-                   (int)frame->voltage_mv[0],
-                   (int)frame->voltage_mv[1],
-                   (int)frame->voltage_mv[2]);
-#endif
+    if (frame->output_rti_mode) {
+        /* Output v3 Physical Referred-To-Input potential in 0.1 uV integer units (10 = 1.0 uV) */
+        len = snprintf(buf, sizeof(buf), "%ld,%ld,%ld\r\n",
+                       (long)frame->emg_rti_tenth_uv[0],
+                       (long)frame->emg_rti_tenth_uv[1],
+                       (long)frame->emg_rti_tenth_uv[2]);
+    } else {
+        /* Output Linearized & Calibrated millivolts at GPIO pin (0..3300 mV) */
+        len = snprintf(buf, sizeof(buf), "%d,%d,%d\r\n",
+                       (int)frame->voltage_mv[0],
+                       (int)frame->voltage_mv[1],
+                       (int)frame->voltage_mv[2]);
+    }
 
     if (len > 0 && len < (int)sizeof(buf)) {
         uart_write_bytes(SEMG_UART_PORT, buf, (size_t)len);

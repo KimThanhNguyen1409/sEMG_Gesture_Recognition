@@ -6,21 +6,18 @@ set "MODE=%~1"
 if not "%MODE%"=="" goto :normalize_mode
 
 echo ==========================================================
-echo   Chon che do build Firmware ESP32-S sEMG:
-echo     [1] RELEASE  - Mach PCB that (ADC1 DMA: GPIO 36,39,34)
-echo     [2] TESTING  - Mo phong tap Test an (nut BOOT doi cu chi)
+echo   Chon che do build Firmware ESP32-S sEMG (100%% Wi-Fi UDP):
+echo     [1] RELEASE   - Full flow ADC that (GPIO 34, 35, 32 + Wi-Fi UDP)
+echo     [2] SIMULATE  - Du lieu Test an tu Flash (nut BOOT + Wi-Fi UDP)
 echo ==========================================================
 set /p CHOICE="Nhap lua chon (1 hoac 2, mac dinh 1): "
-if "%CHOICE%"=="2" (
-    set "MODE=TESTING"
-) else (
-    set "MODE=RELEASE"
-)
+if "%CHOICE%"=="2" set "MODE=SIMULATE"
+if "%MODE%"=="" set "MODE=RELEASE"
 
 :normalize_mode
-if /i "%MODE%"=="testing" set "MODE=TESTING"
+if /i "%MODE%"=="simulate" set "MODE=SIMULATE"
 if /i "%MODE%"=="release" set "MODE=RELEASE"
-if /i "%MODE%"=="2" set "MODE=TESTING"
+if /i "%MODE%"=="2" set "MODE=SIMULATE"
 if /i "%MODE%"=="1" set "MODE=RELEASE"
 
 echo ==========================================================

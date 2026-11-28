@@ -5,11 +5,9 @@
  *        2. Validation (Rail Saturation & Range+Mode Stuck-At Check)
  *        3. Sub-LSB eFuse Calibration Interpolation (in 0.01 mV)
  *        4. Piecewise Linearization Curve Compensation (clamped [0, 3300 mV])
- *        5. High-Resolution Physical Unit Scaling (0.1 uV Referred-To-Input)
- *        6. Optional Q14 Integer 50 Hz Biquad Notch (SEMG_ENABLE_NOTCH50)
- *
- * Note: 8-tap Boxcar FIR @ 1 kHz was intentionally removed because its spectral
- * nulls at 125/250 Hz and -35 dB attenuation @ 450 Hz destroy the sEMG passband.
+ *        5. Auto-Tare DC Offset & Voltage Divider Compensation (SIMULATE mode)
+ *        6. High-Resolution Physical Unit Scaling (0.1 uV Referred-To-Input)
+ *        7. Optional Q14 Integer 50 Hz Biquad Notch (SEMG_ENABLE_NOTCH50)
  */
 
 #pragma once
@@ -52,6 +50,11 @@ typedef struct {
 typedef struct {
     semg_validator_t   validators[SEMG_NUM_CHANNELS];
     semg_notch50_q14_t notch50[SEMG_NUM_CHANNELS];
+    int32_t            vref_mv_x100[SEMG_NUM_CHANNELS];
+    int32_t            rolling_dc_x100[SEMG_NUM_CHANNELS];
+    int64_t            tare_accum_x100[SEMG_NUM_CHANNELS];
+    uint16_t           tare_count;
+    bool               dc_seeded;
     adc_cali_handle_t  cali_handle;
 } semg_pipeline_state_t;
 
@@ -62,6 +65,14 @@ typedef struct {
  * @param[in]  cali_handle Initialized ADC eFuse calibration handle (or NULL).
  */
 void semg_pipeline_init(semg_pipeline_state_t *pipe, adc_cali_handle_t cali_handle);
+
+/**
+ * @brief Lock current rolling resting DC voltage as the active Vref offset per channel.
+ *        Used in SIMULATE mode when switching from CHECK_RAW_MV to AI_LIVE_V3.
+ *
+ * @param[in,out] pipe Pipeline state.
+ */
+void semg_pipeline_tare_now(semg_pipeline_state_t *pipe);
 
 /**
  * @brief Execute v3 integer preprocessing pipeline on a multi-channel oversampled batch.
@@ -85,7 +96,8 @@ void semg_pipeline_process_frame(semg_pipeline_state_t *pipe,
 int32_t semg_linearize_mv_x100(int32_t raw_mv_x100);
 
 /**
- * @brief Convert ADC voltage (in 0.01 mV) to Referred-To-Input physical sEMG in 0.1 uV units.
+ * @brief Convert ADC voltage (in 0.01 mV) to Referred-To-Input physical sEMG in 0.1 uV units
+ *        using nominal SEMG_VREF_MV_X100.
  *
  * @param[in] adc_mv_x100 Linearized ADC voltage in 0.01 mV units.
  * @return int32_t        RTI muscle potential in 0.1 uV units (10 = 1.0 uV).

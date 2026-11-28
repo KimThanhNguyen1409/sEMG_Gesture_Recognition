@@ -24,6 +24,7 @@ import argparse
 import csv
 import json
 import math
+import socket
 import sys
 import time
 import urllib.request
@@ -152,6 +153,51 @@ def iter_samples(source: str, baud: int, fw_format: str, scale: float, realtime:
                         if realtime:
                             time.sleep(0.001)
 
+    elif source.startswith("udp:"):
+        udp_port = int(source.split(":", 1)[1])
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("0.0.0.0", udp_port))
+        sock.settimeout(2.0)
+        print(f"[BRIDGE] Listening for ESP32 Wi-Fi UDP packets on 0.0.0.0:{udp_port} (format={fw_format})...")
+        warned_m0 = False
+        first_pkt = True
+        try:
+            while True:
+                try:
+                    data, addr = sock.recvfrom(4096)
+                except socket.timeout:
+                    continue
+                if first_pkt:
+                    print(f"[BRIDGE] First UDP packet received from {addr[0]}:{addr[1]} ({len(data)} bytes)")
+                    first_pkt = False
+                text = data.decode("utf-8", errors="ignore")
+                for raw_line in text.splitlines():
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    if line == "#M0":
+                        if not warned_m0:
+                            print("[WARN] ESP32 is in Sub-mode 0 (CHECK_RAW_MV). Press IO0/BOOT button on ESP32 to switch to AI_LIVE_V3 (#M1) for AI recognition!")
+                            warned_m0 = True
+                        continue
+                    if line == "#M1":
+                        if warned_m0:
+                            print("[BRIDGE] ESP32 switched to Sub-mode 1 (AI_LIVE_V3 0.1 uV RTI)!")
+                            warned_m0 = False
+                        continue
+                    parts = line.split(",")
+                    if len(parts) != 3:
+                        continue
+                    try:
+                        vals = [float(p) for p in parts]
+                    except ValueError:
+                        continue
+                    factor = 1e-7 if fw_format == "v3" else 1e-6
+                    yield [(v * factor) / scale for v in vals]
+        finally:
+            sock.close()
+
     elif source.startswith("file:"):
         path = source.split(":", 1)[1]
         print(f"[BRIDGE] Reading captured CSV: {path}")
@@ -169,7 +215,7 @@ def iter_samples(source: str, baud: int, fw_format: str, scale: float, realtime:
                 if realtime:
                     time.sleep(0.001)
     else:
-        raise ValueError(f"Unsupported source '{source}'. Use serial:COMx, file:<path>, or dataset:<path>.")
+        raise ValueError(f"Unsupported source '{source}'. Use serial:COMx, udp:5005, file:<path>, or dataset:<path>.")
 
 
 def send_http(url: str, device_id: str, seq: int, features: list):
@@ -224,9 +270,13 @@ def main():
                     payload = json.dumps({"seq": seq, "f": [round(v, 7) for v in feats]})
                     mqtt_client.publish(f"semg/v1/{args.device_id}/features", payload, qos=0)
                 elif args.transport == "http":
-                    res = send_http(http_url, args.device_id, seq, feats)
-                    if seq % 10 == 0 or seq <= 3:
-                        print(f"[SEQ {seq:4d}] {res.strip()}")
+                    try:
+                        res = send_http(http_url, args.device_id, seq, feats)
+                        if seq % 10 == 0 or seq <= 3:
+                            print(f"[SEQ {seq:4d}] {res.strip()}")
+                    except Exception as exc:
+                        if seq % 20 == 1:
+                            print(f"[WARN] HTTP send error at seq {seq}: {exc}")
                 else:
                     print(json.dumps({"seq": seq, "f": [round(v, 7) for v in feats]}))
     except KeyboardInterrupt:

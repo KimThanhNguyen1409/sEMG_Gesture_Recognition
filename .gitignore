@@ -15,7 +15,8 @@ Server/*.dll
 .DS_Store
 Thumbs.db
 .history/
-
+*.csv
+*.xlsx
 # Python
 __pycache__/
 *.py[cod]

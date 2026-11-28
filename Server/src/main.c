@@ -131,6 +131,8 @@ typedef struct {
     time_t step_start_time;
     int samples_count;
     float baseline_mav[SEMG_NUM_CHANNELS];
+    float baseline_rms[SEMG_NUM_CHANNELS];
+    float baseline_wl[SEMG_NUM_CHANNELS];
     float mvc_peak_mav[SEMG_NUM_CHANNELS];
     float channel_gain[SEMG_NUM_CHANNELS];
     bool is_calibrated;
@@ -567,10 +569,16 @@ static void tick_calibration_timer(server_ctx_t* ctx) {
 
     if (ctx->calib.state == CALIB_RESTING && elapsed >= 3.0) {
         for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
+            int base = ch * SEMG_FEATURES_PER_CH;
             if (ctx->calib.samples_count > 0) {
-                ctx->calib.baseline_mav[ch] /= (float)ctx->calib.samples_count;
+                float inv_n = 1.0f / (float)ctx->calib.samples_count;
+                ctx->calib.baseline_mav[ch] *= inv_n;
+                ctx->calib.baseline_rms[ch] *= inv_n;
+                ctx->calib.baseline_wl[ch]  *= inv_n;
             } else {
-                ctx->calib.baseline_mav[ch] = FEATURE_MEAN[ch * SEMG_FEATURES_PER_CH] * 0.3f;
+                ctx->calib.baseline_mav[ch] = FEATURE_MEAN[base + 0] * 0.22f;
+                ctx->calib.baseline_rms[ch] = FEATURE_MEAN[base + 1] * 0.22f;
+                ctx->calib.baseline_wl[ch]  = FEATURE_MEAN[base + 2] * 0.25f;
             }
             ctx->calib.mvc_peak_mav[ch] = 0.0f;
         }
@@ -581,13 +589,14 @@ static void tick_calibration_timer(server_ctx_t* ctx) {
         push_state_via_sse(ctx);
     } else if (ctx->calib.state == CALIB_MVC && elapsed >= 3.0) {
         for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
+            int base = ch * SEMG_FEATURES_PER_CH;
             if (ctx->calib.samples_count == 0 || ctx->calib.mvc_peak_mav[ch] <= ctx->calib.baseline_mav[ch]) {
-                ctx->calib.mvc_peak_mav[ch] = FEATURE_MEAN[ch * SEMG_FEATURES_PER_CH] * 2.8f;
+                ctx->calib.mvc_peak_mav[ch] = FEATURE_MEAN[base + 0] * 2.8f;
             }
             float dynamic_range = ctx->calib.mvc_peak_mav[ch] - ctx->calib.baseline_mav[ch];
             if (dynamic_range < 0.001f) dynamic_range = 0.001f;
-            float ref_mean = FEATURE_MEAN[ch * SEMG_FEATURES_PER_CH] * 2.5f;
-            ctx->calib.channel_gain[ch] = ref_mean / dynamic_range;
+            float ref_active_span = FEATURE_MEAN[base + 0] * 2.2f;
+            ctx->calib.channel_gain[ch] = ref_active_span / dynamic_range;
         }
         ctx->calib.state = CALIB_DONE;
         ctx->calib.is_calibrated = true;
@@ -603,8 +612,10 @@ static void process_calibration_step(server_ctx_t* ctx) {
     if (ctx->calib.state == CALIB_RESTING) {
         ctx->calib.samples_count++;
         for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
-            float mav = ctx->raw_features[ch * SEMG_FEATURES_PER_CH];
-            ctx->calib.baseline_mav[ch] += mav;
+            int base = ch * SEMG_FEATURES_PER_CH;
+            ctx->calib.baseline_mav[ch] += ctx->raw_features[base + 0];
+            ctx->calib.baseline_rms[ch] += ctx->raw_features[base + 1];
+            ctx->calib.baseline_wl[ch]  += ctx->raw_features[base + 2];
         }
     } else if (ctx->calib.state == CALIB_MVC) {
         ctx->calib.samples_count++;
@@ -618,7 +629,7 @@ static void process_calibration_step(server_ctx_t* ctx) {
     tick_calibration_timer(ctx);
 }
 
-/* Apply Dynamic Calibration Scaling to raw features */
+/* Apply Dynamic Calibration Scaling to raw features (preserving resting floor & WL baseline) */
 static void apply_calibration(server_ctx_t* ctx) {
     memcpy(ctx->calib_features, ctx->raw_features, sizeof(ctx->raw_features));
     if (!ctx->calib.is_calibrated) return;
@@ -626,19 +637,26 @@ static void apply_calibration(server_ctx_t* ctx) {
     for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
         int base = ch * SEMG_FEATURES_PER_CH;
         float gain = ctx->calib.channel_gain[ch];
-        float base_offset = ctx->calib.baseline_mav[ch];
 
-        /* Scale MAV and RMS */
-        float adjusted_mav = (ctx->raw_features[base + 0] - base_offset) * gain;
-        if (adjusted_mav < 0.0001f) adjusted_mav = 0.0001f;
+        float ref_rest_mav = FEATURE_MEAN[base + 0] * 0.22f;
+        float ref_rest_rms = FEATURE_MEAN[base + 1] * 0.22f;
+        float ref_rest_wl  = FEATURE_MEAN[base + 2] * 0.25f;
+
+        float dmav = ctx->raw_features[base + 0] - ctx->calib.baseline_mav[ch];
+        float drms = ctx->raw_features[base + 1] - ctx->calib.baseline_rms[ch];
+        float dwl  = ctx->raw_features[base + 2] - ctx->calib.baseline_wl[ch];
+
+        float adjusted_mav = ref_rest_mav + dmav * gain;
+        if (adjusted_mav < 0.0002f) adjusted_mav = 0.0002f;
         ctx->calib_features[base + 0] = adjusted_mav;
 
-        float adjusted_rms = (ctx->raw_features[base + 1] - base_offset) * gain;
-        if (adjusted_rms < 0.0001f) adjusted_rms = 0.0001f;
+        float adjusted_rms = ref_rest_rms + drms * gain;
+        if (adjusted_rms < 0.0003f) adjusted_rms = 0.0003f;
         ctx->calib_features[base + 1] = adjusted_rms;
 
-        /* Scale WL proportionally */
-        ctx->calib_features[base + 2] = ctx->raw_features[base + 2] * gain;
+        float adjusted_wl = ref_rest_wl + dwl * gain;
+        if (adjusted_wl < 0.05f) adjusted_wl = 0.05f;
+        ctx->calib_features[base + 2] = adjusted_wl;
     }
 }
 
@@ -970,8 +988,31 @@ static void parse_json_string_field(const char* body, const char* key, char* out
 }
 
 static void handle_http_client(server_ctx_t* ctx, SOCKET client) {
+    /* Accepted socket inherits non-blocking mode on Winsock; switch to blocking
+     * with a short receive timeout so split HTTP header/body segments don't RST. */
+    u_long blocking = 0;
+    ioctlsocket(client, FIONBIO, &blocking);
+    DWORD rcv_timeout_ms = 200;
+    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const char*)&rcv_timeout_ms, sizeof(rcv_timeout_ms));
+
     char req[4096];
-    int received = recv(client, req, sizeof(req) - 1, 0);
+    int received = 0;
+    while (received < (int)sizeof(req) - 1) {
+        int n = recv(client, req + received, (int)sizeof(req) - 1 - received, 0);
+        if (n <= 0) break;
+        received += n;
+        req[received] = '\0';
+
+        const char* hdr_end = strstr(req, "\r\n\r\n");
+        if (hdr_end != NULL) {
+            int content_len = 0;
+            const char* cl = strstr(req, "Content-Length:");
+            if (cl == NULL) cl = strstr(req, "content-length:");
+            if (cl != NULL) content_len = (int)strtol(cl + 15, NULL, 10);
+            int body_got = received - (int)((hdr_end + 4) - req);
+            if (body_got >= content_len) break;
+        }
+    }
     if (received <= 0) {
         closesocket(client);
         return;
@@ -1024,6 +1065,8 @@ static void handle_http_client(server_ctx_t* ctx, SOCKET client) {
         ctx->calib.is_calibrated = false;
         for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
             ctx->calib.baseline_mav[ch] = 0.0f;
+            ctx->calib.baseline_rms[ch] = 0.0f;
+            ctx->calib.baseline_wl[ch]  = 0.0f;
             ctx->calib.mvc_peak_mav[ch] = 0.0f;
             ctx->calib.channel_gain[ch] = 1.0f;
         }
@@ -1037,6 +1080,8 @@ static void handle_http_client(server_ctx_t* ctx, SOCKET client) {
         for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
             ctx->calib.channel_gain[ch] = 1.0f;
             ctx->calib.baseline_mav[ch] = 0.0f;
+            ctx->calib.baseline_rms[ch] = 0.0f;
+            ctx->calib.baseline_wl[ch]  = 0.0f;
         }
         printf("[CALIB] Calibration RESET to factory defaults.\n");
         const char* ok = "{\"status\":\"reset\"}";
@@ -1144,7 +1189,7 @@ int main(int argc, char* argv[]) {
     memset(&g_ctx, 0, sizeof(g_ctx));
     g_ctx.start_time = time(NULL);
     g_ctx.conf_threshold = 0.75f;
-    g_ctx.vote_window = 3;
+    g_ctx.vote_window = 5;
     g_ctx.last_published_gesture = -1;
 
     for (int ch = 0; ch < SEMG_NUM_CHANNELS; ch++) {
